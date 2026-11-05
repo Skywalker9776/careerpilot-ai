@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerPilot AI — AI hiring &amp; career copilot for crypto</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Plus Jakarta Sans',sans-serif;background:#030712;color:#f3f4f6}
+  .font-display{font-family:'Orbitron',sans-serif}
+  .glow-text{text-shadow:0 0 15px rgba(168,85,247,.5)}
+  .tab-on{border-color:#a855f7!important;color:#c4b5fd}
+  .hidden{display:none}
+  textarea,input,select{outline:none}
+  .card{background:#0a0f1a;border:1px solid #111827;border-radius:.75rem;padding:1.25rem}
+  .btn{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:.05em;padding:.6rem 1.1rem;border-radius:.4rem;background:linear-gradient(90deg,#9333ea,#4f46e5);color:#fff}
+  .btn2{font-size:12px;border:1px solid #1f2937;border-radius:.4rem;padding:.4rem .8rem;color:#d1d5db}
+  .btn2:hover{border-color:#6b21a8}
+  .inp{background:#111827;border:1px solid #1f2937;border-radius:.4rem;padding:.6rem .75rem;font-size:13px;width:100%}
+  .chip{font-size:11px;background:rgba(168,85,247,.12);color:#d8b4fe;border-radius:999px;padding:.15rem .6rem}
+</style>
+</head>
+<body class="min-h-screen antialiased selection:bg-purple-500">
+
+<div id="refBanner" class="hidden bg-purple-950/60 text-center py-2 px-4 text-xs font-mono border-b border-purple-500/30">
+  Invited with referral code <span id="refBannerCode" class="text-emerald-400 font-bold"></span> — attached when you sign up.
+</div>
+
+<header class="border-b border-gray-900 bg-gray-950/80 backdrop-blur-md sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 to-emerald-500 flex items-center justify-center font-display font-black text-white">CP</div>
+      <div>
+        <div class="font-display font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400 text-sm">CAREERPILOT AI</div>
+        <div class="text-[9px] text-gray-500 tracking-widest font-display">FOUNDER: AKMAL BHUTTA</div>
+      </div>
+    </a>
+    <div class="flex items-center gap-3">
+      <button id="walletBtn" class="hidden sm:block btn2 font-display text-[11px]">CONNECT WALLET</button>
+      <button id="authBtn" class="btn">LOG IN / SIGN UP</button>
+    </div>
+  </div>
+</header>
+
+<!-- LANDING -->
+<main id="landing">
+  <section class="max-w-4xl mx-auto text-center pt-16 pb-10 px-4">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-900 border border-gray-800 mb-6">
+      <span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-xs font-mono text-gray-400">Beta · humans make every hiring decision</span>
+    </div>
+    <h1 class="font-display font-black text-3xl sm:text-5xl leading-tight mb-5">
+      The AI copilot for <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400 glow-text">crypto careers &amp; hiring</span>
+    </h1>
+    <p class="text-gray-400 text-lg max-w-2xl mx-auto mb-8">Candidates get an AI agent that analyses their CV, finds roles, writes applications and can apply on autopilot. Companies get blind AI screening, interview kits and an assistant that works through the pipeline.</p>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <button onclick="openAuth('signup','candidate')" class="btn px-7 py-3.5 text-sm">I'M LOOKING FOR WORK</button>
+      <button onclick="openAuth('signup','employer')" class="btn2 px-7 py-3.5 font-display text-xs border-purple-500/60">I'M HIRING</button>
+    </div>
+  </section>
+
+  <section class="max-w-6xl mx-auto px-4 py-10">
+    <h2 class="font-display text-xl font-bold text-center mb-8">What's inside</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-400">
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">CV ANALYST</div>ATS-style score, concrete fixes and missing keywords — without inventing experience.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">AUTOPILOT</div>Opt-in, capped, auditable. Applies to matching direct postings in-platform; drafts the rest for your review. One-click kill switch.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">COPILOT AGENT</div>Chat with an agent that searches jobs, drafts applications and manages settings using real tools on your account. It asks before changing anything.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">BLIND AI SCREENING</div>Employers see ranked candidates with names, emails and CVs hidden until shortlisting. Scores explain strengths and gaps; humans decide.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">INTERVIEW &amp; GAP COACH</div>Tailored interview prep and 30-day skill-gap plans for candidates; structured interview kits for hiring teams.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">MARKET INTEL</div>Live skill demand across listings and a crypto market snapshot, with an AI brief built strictly from that data.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">ON-CHAIN PAYMENTS</div>Pay subscriptions in BNB or ICP; payments are verified on-chain before activation.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">AUDIT TRAIL</div>Every automated action is logged and visible to you, and you can delete your account and data any time.</div>
+      <div class="card"><div class="font-display text-purple-400 text-xs mb-2">REFERRALS</div>Earn a share of referred subscriptions, tracked in a ledger and paid out by the team.</div>
+    </div>
+  </section>
+
+  <section id="pricing" class="max-w-4xl mx-auto px-4 py-12">
+    <h2 class="font-display text-2xl font-bold text-center mb-2">Candidate pricing</h2>
+    <p class="text-center text-gray-500 text-sm mb-6">Free: 2 AI drafts. Paid plans run 30 days and are paid on-chain, no auto-renewal. Employers can post up to <span id="empJobs">3</span> open jobs free during beta.</p>
+    <div class="flex justify-center mb-8"><select id="landingAsset" class="inp !w-auto font-mono"><option value="bnb">Pay in BNB (BNB Smart Chain)</option><option value="icp">Pay in ICP</option></select></div>
+    <div id="planCards" class="grid md:grid-cols-2 gap-6"></div>
+  </section>
+
+  <section class="max-w-3xl mx-auto px-4 py-6 text-sm text-gray-400 text-center">
+    <b class="text-white">Referrals:</b> when someone signs up through your link and pays for a plan, <span id="refPct">10</span>% of that payment is recorded as a pending commission and paid out manually by the team to the wallet you set.
+  </section>
+  <section class="max-w-3xl mx-auto px-4 pb-16 text-xs text-gray-500 text-center">
+    CareerPilot AI assists; it does not guarantee interviews or hires. AI screening is decision support and every stage change is made by a person. Job listings from third parties link to their original pages. Not financial advice.
+  </section>
+</main>
+
+<!-- DASHBOARD -->
+<main id="dash" class="hidden max-w-6xl mx-auto px-4 py-8">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div><div class="font-display text-lg font-bold" id="dashTitle">Dashboard</div><div id="whoami" class="text-xs text-gray-500 font-mono"></div></div>
+    <button onclick="logout()" class="btn2">Log out</button>
+  </div>
+  <div class="flex gap-1 border-b border-gray-900 mb-6 overflow-x-auto text-sm" id="tabs"></div>
+  <div id="tabBody"></div>
+</main>
+
+<!-- AUTH MODAL -->
+<div id="authModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+  <div class="bg-gray-950 border border-gray-800 rounded-2xl p-6 w-full max-w-sm">
+    <div class="flex justify-between mb-4"><h3 id="authTitle" class="font-display font-bold text-purple-400">SIGN UP</h3><button onclick="closeAuth()" class="text-gray-500">✕</button></div>
+    <div id="roleRow" class="flex gap-2 mb-3 text-xs">
+      <button id="roleC" class="btn2 grow">Candidate</button><button id="roleE" class="btn2 grow">Employer</button>
+    </div>
+    <input id="authCompany" placeholder="Company name" class="inp mb-3 hidden">
+    <input id="authEmail" type="email" placeholder="Email" class="inp mb-3">
+    <input id="authPass" type="password" placeholder="Password (8+ characters)" class="inp mb-3">
+    <div id="authErr" class="text-red-400 text-xs mb-3 hidden"></div>
+    <button id="authGo" class="btn w-full">CONTINUE</button>
+    <button id="authSwitch" class="w-full text-xs text-gray-500 mt-3 underline"></button>
+  </div>
+</div>
+
+<!-- TEXT PANEL -->
+<div id="panel" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+  <div class="bg-gray-950 border border-gray-800 rounded-2xl p-6 w-full max-w-2xl max-h-[85vh] overflow-auto">
+    <div class="flex justify-between mb-3"><h3 id="panelTitle" class="font-display text-sm font-bold text-purple-400"></h3><button onclick="$('#panel').classList.add('hidden')" class="text-gray-500">✕</button></div>
+    <pre id="panelBody" class="whitespace-pre-wrap text-sm text-gray-300 font-sans"></pre>
+    <button id="panelCopy" class="btn2 mt-4">Copy</button>
+  </div>
+</div>
+<div id="toast" class="hidden fixed bottom-4 right-4 bg-gray-900 border border-purple-500/40 rounded-lg px-4 py-3 text-sm max-w-sm z-[60]"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let TOKEN = localStorage.getItem('cp_token') || '', ME = null, PRICING = null, authMode = 'signup', authRole = 'candidate', tab = null, CHAT = [];
+const when = t => new Date(t * 1000).toLocaleString();
+
+function toast(m, ms = 4500) { const t = $('#toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), ms); }
+function panel(title, text) { $('#panelTitle').textContent = title; $('#panelBody').textContent = text; $('#panel').classList.remove('hidden'); $('#panelCopy').onclick = () => navigator.clipboard.writeText(text).then(() => toast('Copied.')); }
+async function api(path, opts = {}) {
+  const h = { ...(opts.headers || {}) }; if (TOKEN) h.Authorization = 'Bearer ' + TOKEN;
+  if (opts.json !== undefined) { h['content-type'] = 'application/json'; opts.body = JSON.stringify(opts.json); }
+  const r = await fetch('/api' + path, { ...opts, headers: h }), j = await r.json().catch(() => ({}));
+  if (!r.ok) { if (r.status === 401 && TOKEN) logout(); throw new Error(j.error || 'Request failed'); }
+  return j;
+}
+const run = (btn, label, fn) => async () => { const t = btn.textContent; btn.textContent = label; btn.disabled = true; try { await fn(); } catch (e) { toast(e.message, 7000); } btn.textContent = t; btn.disabled = false; };
+
+// referral capture
+const rp = new URLSearchParams(location.search).get('ref'); if (rp) localStorage.setItem('cp_ref', rp.slice(0, 20));
+const REF = localStorage.getItem('cp_ref') || ''; if (REF) { $('#refBanner').classList.remove('hidden'); $('#refBannerCode').textContent = REF; }
+
+// pricing
+async function loadPricing() { PRICING = await api('/pricing'); $('#refPct').textContent = PRICING.referralPercent; $('#empJobs').textContent = PRICING.employerFreeJobs; renderPlans(); }
+function renderPlans() {
+  const a = $('#landingAsset').value;
+  const feats = { base: ['Up to 5 AI drafts per day', 'Autopilot (5/day cap)', 'AI CV analysis, gap & interview coaching'], elite: ['Up to 25 AI drafts per day', 'Autopilot (25/day cap)', 'Everything in Aether-Base'] };
+  $('#planCards').innerHTML = Object.entries(PRICING.plans).map(([k, p], i) => `
+    <div class="card ${i ? '!border-purple-500/40' : ''} flex flex-col justify-between"><div>
+      <div class="font-display text-xs tracking-widest ${i ? 'text-purple-400' : 'text-gray-400'} mb-2 uppercase">${esc(p.name)}</div>
+      <div class="font-display text-3xl font-black mb-5">${esc(p[a])} <span class="text-xs text-gray-500 font-mono">${a.toUpperCase()} / ${PRICING.cycleDays} days</span></div>
+      <ul class="space-y-2 text-sm text-gray-400 border-t border-gray-900 pt-4 mb-6">${feats[k].map(f => `<li>▪ ${esc(f)}</li>`).join('')}</ul></div>
+      <button onclick="ME ? setTab('billing') : openAuth('signup','candidate')" class="btn w-full">CHOOSE ${esc(p.name.toUpperCase())}</button></div>`).join('');
+}
+$('#landingAsset').onchange = renderPlans;
+
+// auth
+function drawAuth() {
+  $('#authTitle').textContent = authMode === 'signup' ? 'SIGN UP' : 'LOG IN';
+  $('#authSwitch').textContent = authMode === 'signup' ? 'Have an account? Log in' : 'New here? Sign up';
+  $('#roleRow').classList.toggle('hidden', authMode !== 'signup');
+  $('#authCompany').classList.toggle('hidden', !(authMode === 'signup' && authRole === 'employer'));
+  $('#roleC').classList.toggle('tab-on', authRole === 'candidate'); $('#roleE').classList.toggle('tab-on', authRole === 'employer');
+}
+function openAuth(mode, role) { authMode = mode; if (role) authRole = role; $('#authModal').classList.remove('hidden'); drawAuth(); }
+function closeAuth() { $('#authModal').classList.add('hidden'); $('#authErr').classList.add('hidden'); }
+$('#roleC').onclick = () => { authRole = 'candidate'; drawAuth(); }; $('#roleE').onclick = () => { authRole = 'employer'; drawAuth(); };
+$('#authSwitch').onclick = () => { authMode = authMode === 'signup' ? 'login' : 'signup'; drawAuth(); };
+$('#authGo').onclick = async () => {
+  try {
+    const j = await api('/' + authMode, { method: 'POST', json: { email: $('#authEmail').value, password: $('#authPass').value, ref: REF, role: authRole, companyName: $('#authCompany').value } });
+    TOKEN = j.token; localStorage.setItem('cp_token', TOKEN); closeAuth(); tab = null; await boot();
+  } catch (e) { const el = $('#authErr'); el.textContent = e.message; el.classList.remove('hidden'); }
+};
+$('#authBtn').onclick = () => ME ? setTab(tab) : openAuth('login');
+function logout() { TOKEN = ''; ME = null; CHAT = []; localStorage.removeItem('cp_token'); showLanding(); }
+
+// wallet
+let WALLET = '';
+async function connectWallet() {
+  if (!window.ethereum) return toast('No EVM wallet found. Install MetaMask or Trust Wallet.');
+  try { const [a] = await window.ethereum.request({ method: 'eth_requestAccounts' }); WALLET = a; $('#walletBtn').textContent = a.slice(0, 6) + '…' + a.slice(-4); } catch { toast('Wallet connection cancelled.'); }
+}
+$('#walletBtn').onclick = connectWallet;
+
+// shell
+const TABS = {
+  candidate: [['cv', 'CV & Analyst'], ['jobs', 'Jobs'], ['apps', 'Applications'], ['autopilot', 'Autopilot'], ['agent', 'Copilot'], ['market', 'Market'], ['billing', 'Plan & Payment'], ['refs', 'Referrals'], ['log', 'Activity']],
+  employer: [['ejobs', 'Jobs & Hiring'], ['agent', 'Hiring Copilot'], ['market', 'Market'], ['refs', 'Referrals'], ['log', 'Activity']],
+};
+const VIEWS = { cv: viewCv, jobs: viewJobs, apps: viewApps, autopilot: viewAutopilot, agent: viewAgent, market: viewMarket, billing: viewBilling, refs: viewRefs, log: viewLog, ejobs: viewEJobs };
+function showLanding() { $('#landing').classList.remove('hidden'); $('#dash').classList.add('hidden'); $('#authBtn').textContent = 'LOG IN / SIGN UP'; }
+function setTab(t) {
+  $('#landing').classList.add('hidden'); $('#dash').classList.remove('hidden'); $('#authBtn').textContent = 'DASHBOARD';
+  tab = t || TABS[ME.role][0][0];
+  $('#tabs').innerHTML = TABS[ME.role].map(([k, l]) => `<button data-t="${k}" class="px-4 py-2 border-b-2 border-transparent whitespace-nowrap ${k === tab ? 'tab-on' : ''}">${l}</button>`).join('');
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.t));
+  VIEWS[tab]().catch(e => toast(e.message));
+}
+async function boot() {
+  await loadPricing().catch(() => {});
+  if (!TOKEN) return showLanding();
+  try { ME = (await api('/me')).user; } catch { return showLanding(); }
+  $('#dashTitle').textContent = ME.role === 'employer' ? ME.companyName + ' — hiring portal' : 'Candidate dashboard';
+  $('#whoami').textContent = `${ME.email}${ME.role === 'candidate' ? ' · plan: ' + ME.plan + (ME.planExpires ? ' until ' + new Date(ME.planExpires * 1000).toLocaleDateString() : '') : ''}`;
+  setTab(tab && TABS[ME.role].some(t => t[0] === tab) ? tab : null);
+}
+const body = h => { $('#tabBody').innerHTML = h; };
+
+// ---- CV & analyst
+async function viewCv() {
+  const p = ME.profile, a = ME.ats;
+  body(`<div class="grid md:grid-cols-2 gap-6">
+    <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">UPLOAD YOUR CV</h3>
+      <input id="cvFile" type="file" accept=".pdf,.txt,.md" class="text-xs mb-3 block">
+      <div class="text-xs text-gray-500 mb-2">…or paste the text:</div><textarea id="cvText" rows="8" class="inp" placeholder="Paste your CV text here"></textarea>
+      <button id="cvGo" class="btn mt-3">ANALYSE CV</button>
+      <p class="text-[11px] text-gray-600 mt-3">Your CV text is stored on this server to write drafts and screen applications, and sent to the AI provider when AI is on. Leave out ID numbers and anything you wouldn't put in an application. You can delete everything from the Activity tab.</p></div>
+    <div class="card"><h3 class="font-display text-xs text-emerald-400 mb-3">YOUR PROFILE</h3>
+      ${p ? `<p class="text-sm text-gray-300 mb-3">${esc(p.summary)}</p><div class="flex flex-wrap gap-2 mb-3">${(p.skills || []).map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>${p.titles?.length ? `<div class="text-xs text-gray-500">Target roles: ${p.titles.map(esc).join(', ')}</div>` : ''}<div class="text-[11px] text-gray-600 mt-2">Extracted by: ${p.source === 'ai' ? 'AI' : 'keyword matching'}</div>` : '<p class="text-sm text-gray-500">No CV yet.</p>'}
+    </div></div>
+    <div class="card mt-6"><div class="flex flex-wrap items-center justify-between gap-3 mb-3"><h3 class="font-display text-xs text-purple-400">CV ANALYST (ATS CHECK)</h3>
+      <div class="flex gap-2"><input id="atsTarget" class="inp !w-56" placeholder="Target role (optional)"><button id="atsGo" class="btn" ${p ? '' : 'disabled'}>ANALYSE</button></div></div>
+      <div id="atsOut">${a ? atsHtml(a) : '<p class="text-sm text-gray-500">Upload a CV, then run the analyst.</p>'}</div></div>`);
+  $('#cvGo').onclick = run($('#cvGo'), 'ANALYSING…', async () => {
+    const f = $('#cvFile').files[0], fd = new FormData(); f ? fd.append('cv', f) : fd.append('text', $('#cvText').value);
+    await api('/cv', { method: 'POST', body: fd }); ME = (await api('/me')).user; toast('CV analysed.'); viewCv();
+  });
+  $('#atsGo').onclick = run($('#atsGo'), '…', async () => { const j = await api('/cv/analyze', { method: 'POST', json: { target: $('#atsTarget').value } }); ME.ats = j.analysis; $('#atsOut').innerHTML = atsHtml(j.analysis); });
+}
+function atsHtml(a) {
+  const li = (t, arr) => arr?.length ? `<div><div class="text-xs text-gray-500 mb-1">${t}</div><ul class="text-sm text-gray-300 space-y-1">${arr.map(x => `<li>▪ ${esc(x)}</li>`).join('')}</ul></div>` : '';
+  return `<div class="flex items-center gap-4 mb-4"><div class="font-display text-4xl font-black ${a.score >= 70 ? 'text-emerald-400' : a.score >= 50 ? 'text-amber-400' : 'text-red-400'}">${a.score}</div><div class="text-xs text-gray-500">/100 · by ${a.by === 'ai' ? 'AI' : 'basic checks (AI not configured)'}</div></div>
+  <div class="grid md:grid-cols-2 gap-4">${li('Strengths', a.strengths)}${li('Issues', a.issues)}${li('Improvements', a.improvements)}${li('Missing keywords', a.missingKeywords)}</div>`;
+}
+
+// ---- Jobs
+function jobCard(j) {
+  return `<div class="card !p-4"><div class="flex justify-between gap-3"><div><div class="font-semibold text-sm">${esc(j.title)} ${j.native ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Direct</span>' : ''}</div><div class="text-xs text-gray-500">${esc(j.company)} · ${esc(j.location)}${j.salary ? ' · ' + esc(j.salary) : ''}</div></div>
+    ${j.score != null ? `<div class="font-display text-lg ${j.score >= 70 ? 'text-emerald-400' : j.score >= 40 ? 'text-amber-400' : 'text-gray-500'}">${j.score}</div>` : ''}</div>
+    ${j.reason ? `<div class="text-xs text-gray-400 mt-2">${esc(j.reason)}</div>` : ''}
+    <div class="flex flex-wrap gap-1.5 mt-2">${(j.tags || []).slice(0, 5).map(t => `<span class="text-[10px] bg-gray-900 rounded px-2 py-0.5 text-gray-400">${esc(t)}</span>`).join('')}</div>
+    <div class="flex flex-wrap gap-2 mt-3"><button data-draft="${esc(j.id)}" class="btn2 !border-purple-500/40 !text-purple-300">Draft application</button>
+      <button data-ins="gap:${esc(j.id)}" class="btn2">Skill gap</button><button data-ins="prep:${esc(j.id)}" class="btn2">Interview prep</button>
+      ${/^https?:\/\//.test(j.url) ? `<a href="${esc(j.url)}" target="_blank" rel="noopener noreferrer" class="btn2">Listing ↗</a>` : ''}</div></div>`;
+}
+function wireJobs() {
+  document.querySelectorAll('[data-draft]').forEach(b => b.onclick = run(b, 'Drafting…', async () => { await api('/applications/draft', { method: 'POST', json: { jobId: b.dataset.draft } }); toast('Draft saved in Applications.'); b.textContent = 'Drafted ✓'; }));
+  document.querySelectorAll('[data-ins]').forEach(b => b.onclick = run(b, '…', async () => { const [k, id] = b.dataset.ins.split(/:(.+)/); const j = await api('/jobs/' + encodeURIComponent(id) + '/insights', { method: 'POST', json: { kind: k } }); panel(k === 'gap' ? 'Skill gap & 30-day plan' : 'Interview prep', j.text); }));
+}
+async function viewJobs() {
+  body(`<div class="flex flex-wrap gap-2 mb-4"><input id="jq" placeholder="Filter (e.g. solidity, marketing)" class="inp grow !w-auto"><button id="jBrowse" class="btn2">Browse</button><button id="jMatch" class="btn">MATCH TO MY CV</button></div>
+    <div id="jMeta" class="text-[11px] text-gray-600 mb-3"></div><div id="jList" class="grid md:grid-cols-2 gap-3"><div class="text-sm text-gray-500">Click Browse or Match.</div></div>`);
+  $('#jBrowse').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Loading…</div>'; const j = await api('/jobs?q=' + encodeURIComponent($('#jq').value)).catch(e => (toast(e.message), { jobs: [] }));
+    $('#jMeta').textContent = j.jobs.length ? `${j.total} listings · ${j.source}` : ''; $('#jList').innerHTML = j.jobs.map(jobCard).join('') || '<div class="text-sm text-gray-500">No listings found (a job source may be unreachable).</div>'; wireJobs(); };
+  $('#jMatch').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Scoring against your CV…</div>';
+    try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
+    catch (e) { toast(e.message); $('#jList').innerHTML = ''; } };
+}
+
+// ---- Applications
+const STAGE = { applied: 'Submitted', shortlisted: 'Shortlisted 🎉', interview: 'Interview', offer: 'Offer 🎉', rejected: 'Not moving forward' };
+async function viewApps() {
+  const { applications, remainingDrafts } = await api('/applications');
+  body(`<div class="text-xs text-gray-500 mb-4">Drafts remaining: <b class="text-purple-300">${remainingDrafts}</b> · Edit and approve each letter. Direct postings are submitted inside CareerPilot; for external listings open the original page, or email it if you have the recipient's address and email sending is enabled.</div>
+  <div class="space-y-4">${applications.map(a => { const direct = a.job_id.startsWith('cp-'); return `
+    <div class="card !p-4" data-app="${a.id}"><div class="flex justify-between flex-wrap gap-2 mb-2">
+      <div><div class="font-semibold text-sm">${esc(a.title)} ${direct ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Direct</span>' : ''}</div><div class="text-xs text-gray-500">${esc(a.company)} · fit ${a.score ?? '–'} · written by ${esc(a.draft_source)}${a.employer_stage ? ' · <b class="text-emerald-300">' + esc(STAGE[a.employer_stage] || a.employer_stage) + '</b>' : ''}</div></div>
+      <select class="st inp !w-auto !py-1" ${a.status === 'applied' && direct ? 'disabled' : ''}>${['draft', 'approved', 'applied', 'discarded'].map(s => `<option ${s === a.status ? 'selected' : ''} ${s === 'applied' && direct ? 'disabled' : ''}>${s}</option>`).join('')}</select></div>
+    <textarea rows="6" class="cl inp !text-xs">${esc(a.cover_letter)}</textarea>
+    <div class="flex flex-wrap gap-2 mt-2"><button class="save btn2">Save edits</button><button class="copy btn2">Copy</button>
+      ${direct && a.status !== 'applied' ? '<button class="submit btn2 !border-emerald-500/50 !text-emerald-300">Submit to employer</button>' : ''}
+      ${/^https?:\/\//.test(a.url) ? `<a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" class="btn2">Open listing ↗</a>` : ''}
+      ${!direct && PRICING.configured.email && a.status === 'approved' && !a.emailed ? '<input class="to inp !w-52 !py-1" placeholder="Recipient email"><button class="mail btn2">Send email</button>' : ''}</div></div>`; }).join('') || '<div class="text-sm text-gray-500">No drafts yet — go to Jobs.</div>'}</div>`);
+  document.querySelectorAll('[data-app]').forEach(el => {
+    const id = el.dataset.app, q = s => el.querySelector(s);
+    q('.save').onclick = () => api('/applications/' + id, { method: 'PATCH', json: { coverLetter: q('.cl').value } }).then(() => toast('Saved.')).catch(e => toast(e.message));
+    q('.st').onchange = e => api('/applications/' + id, { method: 'PATCH', json: { status: e.target.value } }).then(() => toast('Status updated.')).catch(x => toast(x.message));
+    q('.copy').onclick = () => navigator.clipboard.writeText(q('.cl').value).then(() => toast('Copied.'));
+    if (q('.submit')) q('.submit').onclick = run(q('.submit'), 'Submitting…', async () => { await api('/applications/' + id, { method: 'PATCH', json: { coverLetter: q('.cl').value } }); const j = await api('/applications/' + id + '/submit', { method: 'POST' }); toast('Submitted. Employer-side screening score: ' + j.screening.score); viewApps(); });
+    if (q('.mail')) q('.mail').onclick = run(q('.mail'), 'Sending…', async () => { await api('/applications/' + id + '/email', { method: 'POST', json: { to: q('.to').value } }); toast('Email sent.'); viewApps(); });
+  });
+}
+
+// ---- Autopilot
+async function viewAutopilot() {
+  const s = ME.autopilot;
+  body(`<div class="grid md:grid-cols-2 gap-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">AUTOPILOT</h3>
+    <p class="text-xs text-gray-400 mb-4">Runs about every hour. For <b>direct CareerPilot postings</b> that match at or above your minimum score it drafts a letter from your CV and submits it in-platform (employers see it was sent by autopilot). For <b>external listings</b> it only drafts — you always send those yourself. It never exceeds your daily cap, and every action is in the Activity log.</p>
+    <label class="flex items-center gap-2 text-sm mb-4"><input type="checkbox" id="apOn" ${s.enabled ? 'checked' : ''}> <b>Autopilot enabled</b></label>
+    <div class="grid grid-cols-2 gap-3 mb-3"><div><div class="text-xs text-gray-500 mb-1">Minimum fit score (30–100)</div><input id="apMin" type="number" class="inp" value="${s.minScore}"></div>
+      <div><div class="text-xs text-gray-500 mb-1">Max actions per day (1–25)</div><input id="apCap" type="number" class="inp" value="${s.dailyCap}"></div></div>
+    <div class="text-xs text-gray-500 mb-1">Only roles containing (comma separated, optional)</div><input id="apKw" class="inp mb-3" value="${esc(s.keywords)}" placeholder="solidity, defi, community">
+    <label class="flex items-center gap-2 text-xs text-gray-300 mb-4"><input type="checkbox" id="apSub" ${s.autoSubmitDirect ? 'checked' : ''}> Auto-submit to direct postings (otherwise draft only)</label>
+    <div class="flex gap-2"><button id="apSave" class="btn">SAVE</button><button id="apRun" class="btn2">Run now</button></div></div>
+    <div class="card text-sm text-gray-400"><h3 class="font-display text-xs text-emerald-400 mb-3">GUARDRAILS</h3><ul class="space-y-2"><li>▪ Opt-in only; off by default. Untick and save to stop instantly.</li><li>▪ Letters use only facts in your CV.</li><li>▪ Draft limits of your plan apply (free: 2 total).</li><li>▪ External applications are never sent automatically.</li></ul></div></div>`);
+  $('#apSave').onclick = run($('#apSave'), 'SAVING…', async () => { const j = await api('/autopilot', { method: 'POST', json: { enabled: $('#apOn').checked, minScore: +$('#apMin').value, dailyCap: +$('#apCap').value, keywords: $('#apKw').value, autoSubmitDirect: $('#apSub').checked } }); ME.autopilot = j.settings; toast('Autopilot settings saved.'); });
+  $('#apRun').onclick = run($('#apRun'), 'Running…', async () => { const j = await api('/autopilot/run', { method: 'POST' }); toast(`Autopilot: ${j.applied} submitted, ${j.drafted} drafted.`); });
+}
+
+// ---- Agent chat (both roles)
+async function viewAgent() {
+  const emp = ME.role === 'employer';
+  body(`<div class="card"><h3 class="font-display text-xs text-purple-400 mb-1">${emp ? 'HIRING COPILOT' : 'CAREER COPILOT'}</h3>
+    <p class="text-xs text-gray-500 mb-4">${emp ? 'Ask about your postings and applicants, draft job descriptions, or get a market snapshot. It can read your data but never rejects or contacts candidates.' : 'Ask it to find roles, review your profile, draft applications or tune autopilot. It drafts but never sends, and asks before changing settings.'}</p>
+    <div id="chat" class="space-y-3 mb-4 max-h-[50vh] overflow-auto text-sm"></div>
+    <div class="flex gap-2"><input id="chatIn" class="inp" placeholder="${emp ? 'e.g. Summarise my top applicants for job 1' : 'e.g. Find Solidity roles and draft the best match'}"><button id="chatGo" class="btn">SEND</button></div></div>`);
+  const draw = () => { $('#chat').innerHTML = CHAT.map(m => `<div class="${m.role === 'user' ? 'text-right' : ''}"><span class="inline-block whitespace-pre-wrap text-left rounded-lg px-3 py-2 ${m.role === 'user' ? 'bg-purple-600/20' : 'bg-gray-900'}">${esc(m.content)}</span></div>`).join(''); $('#chat').scrollTop = 1e6; };
+  draw();
+  const send = run($('#chatGo'), '…', async () => { const v = $('#chatIn').value.trim(); if (!v) return; CHAT.push({ role: 'user', content: v }); $('#chatIn').value = ''; draw();
+    try { const j = await api('/agent', { method: 'POST', json: { messages: CHAT } }); CHAT.push({ role: 'assistant', content: j.reply }); } catch (e) { CHAT.push({ role: 'assistant', content: '⚠ ' + e.message }); } draw(); });
+  $('#chatGo').onclick = send; $('#chatIn').onkeydown = e => { if (e.key === 'Enter') send(); };
+}
+
+// ---- Market
+async function viewMarket() {
+  body('<div class="text-sm text-gray-500">Loading market data…</div>');
+  const m = await api('/market'), j = m.jobs, c = m.crypto, fmt = n => n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : Math.round(n).toLocaleString();
+  const max = Math.max(1, ...j.topSkills.map(s => s.n));
+  body(`<div class="grid md:grid-cols-2 gap-6">
+    <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">HIRING DEMAND</h3>
+      <div class="text-xs text-gray-500 mb-3">${j.sampleSize} listings · ${j.companies} companies · ${j.direct} direct postings${j.medianMaxSalaryUsd ? ` · median top-of-range salary ≈ $${j.medianMaxSalaryUsd.toLocaleString()} (n=${j.salarySample})` : ''}</div>
+      <div class="space-y-1.5">${j.topSkills.map(s => `<div class="flex items-center gap-2 text-xs"><div class="w-24 text-gray-400 truncate">${esc(s.tag)}</div><div class="h-2 rounded bg-gradient-to-r from-purple-500 to-emerald-400" style="width:${Math.round(s.n / max * 100)}%"></div><div class="text-gray-500">${s.n}</div></div>`).join('') || '<div class="text-sm text-gray-500">No listing data available right now.</div>'}</div></div>
+    <div class="card"><h3 class="font-display text-xs text-emerald-400 mb-3">CRYPTO MARKET</h3>
+      ${c ? `<div class="text-xs text-gray-400 mb-3">Total cap $${fmt(c.marketCapUsd)} · 24h volume $${fmt(c.volumeUsd)} · BTC dominance ${c.btcDominance?.toFixed(1)}% · 24h ${c.change24h?.toFixed(2)}%</div>
+      <div class="space-y-1 text-xs">${c.top.map(t => `<div class="flex justify-between"><span>${esc(t.name)} <span class="text-gray-500">${esc(t.symbol)}</span></span><span>$${Number(t.price).toLocaleString()} <span class="${t.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}">${t.change24h?.toFixed(1)}%</span></span></div>`).join('')}</div>` : '<div class="text-sm text-gray-500">Price data unavailable right now.</div>'}</div></div>
+    <div class="card mt-6"><div class="flex justify-between items-center mb-2"><h3 class="font-display text-xs text-purple-400">AI MARKET BRIEF</h3><button id="brief" class="btn2">Generate</button></div><div id="briefOut" class="text-sm text-gray-300 whitespace-pre-wrap">Summarises only the data above.</div></div>
+    <div class="text-[11px] text-gray-600 mt-4">${esc(m.sources)}</div>`);
+  $('#brief').onclick = run($('#brief'), '…', async () => { $('#briefOut').textContent = (await api('/market/brief')).brief; });
+}
+
+// ---- Billing (candidates)
+function viewBilling() {
+  const P = PRICING, c = P.configured;
+  body(`<div class="card max-w-2xl"><h3 class="font-display text-xs text-purple-400 mb-4">UPGRADE · PAY ON-CHAIN</h3>
+    <div class="grid sm:grid-cols-2 gap-3 mb-4"><select id="bPlan" class="inp">${Object.entries(P.plans).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join('')}</select><select id="bChain" class="inp"><option value="BNB">BNB (BNB Smart Chain)</option><option value="ICP">ICP</option></select></div>
+    <div id="bInfo" class="text-sm text-gray-300 mb-4"></div><div id="bBnb" class="mb-4"><button id="bPay" class="btn">PAY WITH WALLET</button></div>
+    <div class="text-xs text-gray-500 mb-2">Already sent it? Paste the transaction hash:</div>
+    <div class="flex gap-2"><input id="bHash" class="inp font-mono !text-xs" placeholder="Transaction hash"><button id="bVerify" class="btn2">Verify</button></div>
+    <p class="text-[11px] text-gray-600 mt-4">The server checks the transaction on-chain (recipient, amount, confirmations) before activating your plan; each transaction works once. Only native BNB and ICP transfers are accepted. Payments are non-refundable unless you contact support.</p></div>`);
+  const draw = () => { const plan = $('#bPlan').value, ch = $('#bChain').value, p = P.plans[plan], addr = ch === 'BNB' ? P.merchant.bnb : P.merchant.icp, amt = ch === 'BNB' ? p.bnb : p.icp;
+    $('#bInfo').innerHTML = c[ch.toLowerCase()] ? `Send <b>${esc(amt)} ${ch}</b> to:<div class="font-mono text-xs break-all bg-gray-900 rounded p-2 mt-1 select-all">${esc(addr)}</div>${ch === 'ICP' ? '<div class="text-xs text-gray-500 mt-1">Use the account identifier above (not a principal).</div>' : ''}` : `<span class="text-amber-400">${ch} payments are not configured on this server yet.</span>`;
+    $('#bBnb').classList.toggle('hidden', ch !== 'BNB' || !c.bnb); };
+  $('#bPlan').onchange = $('#bChain').onchange = draw; draw();
+  const verify = async h => { try { await api('/payments/verify', { method: 'POST', json: { chain: $('#bChain').value, plan: $('#bPlan').value, txHash: h } }); toast('Payment verified — plan activated.'); await boot(); setTab('billing'); } catch (e) { toast(e.message, 7000); } };
+  $('#bVerify').onclick = () => verify($('#bHash').value.trim());
+  $('#bPay').onclick = async () => {
+    if (!window.ethereum) return toast('No EVM wallet found. Send manually and paste the hash.');
+    try { await connectWallet();
+      try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x38' }] }); } catch (e) { if (e.code === 4902) await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x38', chainName: 'BNB Smart Chain', nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }, rpcUrls: ['https://bsc-dataseed.binance.org'], blockExplorerUrls: ['https://bscscan.com'] }] }); else throw e; }
+      const [a, b = ''] = P.plans[$('#bPlan').value].bnb.split('.'), wei = BigInt(a) * 10n ** 18n + BigInt((b + '0'.repeat(18)).slice(0, 18));
+      const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: WALLET, to: P.merchant.bnb, value: '0x' + wei.toString(16) }] });
+      $('#bHash').value = hash; toast('Sent. Waiting for confirmations…', 6000);
+      for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 6000)); try { await api('/payments/verify', { method: 'POST', json: { chain: 'BNB', plan: $('#bPlan').value, txHash: hash } }); toast('Payment verified — plan activated.'); await boot(); return setTab('billing'); } catch (e) { if (!/confirmation|pending|not found/i.test(e.message)) return toast(e.message, 7000); } }
+      toast('Still confirming — press Verify in a minute.');
+    } catch (e) { toast(e.message || 'Wallet action cancelled.'); }
+  };
+}
+
+// ---- Referrals
+async function viewRefs() {
+  const r = await api('/referrals'), link = location.origin + '/?ref=' + r.refCode;
+  const tot = Object.entries(r.totals).map(([k, v]) => { const [a, s] = k.split(':'); return `${v} ${a} (${s})`; }).join(' · ') || 'none yet';
+  body(`<div class="grid md:grid-cols-2 gap-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">YOUR REFERRAL LINK</h3>
+    <div class="font-mono text-xs bg-gray-900 rounded p-3 break-all select-all text-emerald-400">${esc(link)}</div>
+    <p class="text-xs text-gray-500 mt-3">You earn ${r.percent}% of each referred user's plan payments, recorded as pending and paid out manually. Referred sign-ups: <b>${r.signups}</b>.</p>
+    <div class="text-xs text-gray-500 mt-4 mb-1">Payout wallet (BNB address or ICP account ID)</div><div class="flex gap-2"><input id="pw" value="${esc(ME.payoutWallet)}" class="inp font-mono !text-xs"><button id="pwSave" class="btn2">Save</button></div></div>
+    <div class="card"><h3 class="font-display text-xs text-emerald-400 mb-3">EARNINGS</h3><div class="text-sm mb-3">${esc(tot)}</div>
+    <div class="space-y-1 text-xs text-gray-400 max-h-48 overflow-auto">${r.earnings.map(e => `<div>${new Date(e.created_at * 1000).toLocaleDateString()} · ${esc(e.amount)} ${esc(e.asset)} · ${esc(e.status)}</div>`).join('')}</div></div></div>`);
+  $('#pwSave').onclick = () => api('/profile', { method: 'POST', json: { payoutWallet: $('#pw').value } }).then(() => { ME.payoutWallet = $('#pw').value; toast('Saved.'); }).catch(e => toast(e.message));
+}
+
+// ---- Activity + account deletion
+async function viewLog() {
+  const { log } = await api('/audit');
+  body(`<div class="grid md:grid-cols-3 gap-6"><div class="card md:col-span-2"><h3 class="font-display text-xs text-purple-400 mb-3">ACTIVITY LOG</h3><div class="space-y-1 text-xs text-gray-400">${log.map(l => `<div><span class="text-gray-600">${when(l.created_at)}</span> · <b class="text-gray-300">${esc(l.action)}</b> ${esc(l.detail)}</div>`).join('') || 'Nothing yet.'}</div></div>
+    <div class="card"><h3 class="font-display text-xs text-red-400 mb-3">DELETE ACCOUNT</h3><p class="text-xs text-gray-500 mb-3">Permanently deletes your account, CV, applications, postings and activity. Payment records are kept for accounting.</p><input id="delConf" class="inp mb-2" placeholder='Type DELETE'><button id="delGo" class="btn2 !border-red-500/50 !text-red-300">Delete everything</button></div></div>`);
+  $('#delGo').onclick = async () => { if ($('#delConf').value !== 'DELETE') return toast('Type DELETE to confirm.'); try { await api('/account', { method: 'DELETE', json: { confirm: 'DELETE' } }); toast('Account deleted.'); logout(); } catch (e) { toast(e.message); } };
+}
+
+// ---- Employer: jobs & applicants
+async function viewEJobs() {
+  const { jobs } = await api('/employer/jobs');
+  body(`<div class="grid lg:grid-cols-5 gap-6"><div class="card lg:col-span-2"><h3 class="font-display text-xs text-purple-400 mb-3">POST A JOB</h3>
+    <input id="jt" class="inp mb-2" placeholder="Job title"><input id="jtags" class="inp mb-2" placeholder="Skills/tags, comma separated (solidity, defi)">
+    <div class="grid grid-cols-2 gap-2 mb-2"><input id="jloc" class="inp" placeholder="Location" value="Remote"><input id="jsal" class="inp" placeholder="Salary (optional)"></div>
+    <textarea id="jd" rows="9" class="inp mb-2" placeholder="Job description"></textarea>
+    <div class="flex gap-2"><button id="jAi" class="btn2">✨ AI write description</button><button id="jPost" class="btn">POST JOB</button></div>
+    <p class="text-[11px] text-gray-600 mt-3">Applicants are screened blind: names, emails and CVs stay hidden until you shortlist. AI scores are decision support only.</p></div>
+    <div class="lg:col-span-3 space-y-3">${jobs.map(j => `<div class="card !p-4"><div class="flex justify-between gap-2"><div><div class="font-semibold text-sm">${esc(j.title)} <span class="chip">${esc(j.status)}</span></div><div class="text-xs text-gray-500">${j.applicants} applicant(s) · ${esc(j.location)}</div></div>
+      <div class="flex gap-2"><button class="btn2" data-view="${j.id}">Applicants</button><button class="btn2" data-close="${j.id}:${j.status === 'open' ? 'closed' : 'open'}">${j.status === 'open' ? 'Close' : 'Reopen'}</button></div></div></div>`).join('') || '<div class="text-sm text-gray-500">No jobs yet.</div>'}
+    <div id="applicants"></div></div></div>`);
+  $('#jAi').onclick = run($('#jAi'), 'Writing…', async () => { $('#jd').value = (await api('/employer/jobs/ai-describe', { method: 'POST', json: { title: $('#jt').value, notes: $('#jd').value } })).description; });
+  $('#jPost').onclick = run($('#jPost'), 'POSTING…', async () => { await api('/employer/jobs', { method: 'POST', json: { title: $('#jt').value, tags: $('#jtags').value, location: $('#jloc').value, salary: $('#jsal').value, description: $('#jd').value } }); toast('Job posted. Candidates with autopilot can now be matched.'); viewEJobs(); });
+  document.querySelectorAll('[data-close]').forEach(b => b.onclick = async () => { const [id, st] = b.dataset.close.split(':'); await api('/employer/jobs/' + id, { method: 'PATCH', json: { status: st } }); viewEJobs(); });
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => viewApplicants(b.dataset.view));
+}
+async function viewApplicants(id) {
+  const j = await api('/employer/jobs/' + id + '/applicants');
+  $('#applicants').innerHTML = `<div class="card"><h3 class="font-display text-xs text-emerald-400 mb-3">APPLICANTS · ${esc(j.job.title)} · blind screening</h3><div class="space-y-3">${j.applicants.map(a => `
+    <div class="border border-gray-900 rounded-lg p-3" data-ap="${a.id}"><div class="flex justify-between gap-2"><div><b class="text-sm">${a.revealed ? esc(a.email) : esc(a.alias)}</b> <span class="chip">${esc(a.stage)}</span> ${a.via === 'autopilot' ? '<span class="chip !bg-amber-500/15 !text-amber-300">sent by autopilot</span>' : ''}</div>
+      <div class="font-display text-xl ${a.score >= 70 ? 'text-emerald-400' : a.score >= 40 ? 'text-amber-400' : 'text-gray-500'}">${a.score}</div></div>
+      <div class="text-xs text-gray-300 mt-1">${esc(a.summary)}</div>
+      <div class="text-xs text-gray-500 mt-1">+ ${a.strengths.map(esc).join(', ') || '—'} · gaps: ${a.gaps.map(esc).join(', ') || '—'} · screened by ${esc(a.screenedBy)}</div>
+      <div class="flex flex-wrap gap-1 mt-1">${a.skills.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
+      <details class="mt-2"><summary class="text-xs text-gray-400 cursor-pointer">Cover letter${a.revealed ? ' & CV' : ''}</summary><pre class="whitespace-pre-wrap text-xs text-gray-400 mt-2 font-sans">${esc(a.coverLetter)}${a.cv ? '\n\n----- CV -----\n' + esc(a.cv) : ''}</pre></details>
+      <div class="flex flex-wrap gap-2 mt-2">${['shortlisted', 'interview', 'offer', 'rejected'].map(s => `<button class="btn2" data-stage="${s}">${s}</button>`).join('')}<button class="btn2" data-kit="interview">Interview kit</button><button class="btn2" data-kit="message">Draft invite</button></div></div>`).join('') || '<div class="text-sm text-gray-500">No applicants yet.</div>'}</div></div>`;
+  document.querySelectorAll('[data-ap]').forEach(el => { const aid = el.dataset.ap;
+    el.querySelectorAll('[data-stage]').forEach(b => b.onclick = async () => { try { await api('/employer/applicants/' + aid, { method: 'PATCH', json: { stage: b.dataset.stage } }); viewApplicants(id); } catch (e) { toast(e.message); } });
+    el.querySelectorAll('[data-kit]').forEach(b => b.onclick = run(b, '…', async () => { const j2 = await api('/employer/applicants/' + aid + '/kit', { method: 'POST', json: { kind: b.dataset.kit } }); panel(b.dataset.kit === 'interview' ? 'Structured interview kit' : 'Invitation draft', j2.text); })); });
+}
+
+boot();
+</script>
+</body>
+</html>
