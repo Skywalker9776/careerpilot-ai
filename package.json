@@ -10,6 +10,10 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@dfinity/agent": "^3.4.3",
+    "@dfinity/identity": "3.4.3",
+    "@dfinity/principal": "^3.4.3",
+    "@dfinity/standalone-sig-verifier-web": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "ethers": "^6.17.0",

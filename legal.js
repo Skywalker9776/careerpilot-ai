@@ -20,9 +20,10 @@ code{word-break:break-all;font-size:13px}nav a{margin-right:14px;font-size:14px}
 }
 
 function contactLine(cfg) {
-  return cfg.contactEmail
-    ? `You can contact us at <a href="mailto:${esc(cfg.contactEmail)}">${esc(cfg.contactEmail)}</a>.`
-    : 'You can contact us through the in-app Copilot or by replying to any email we send you.';
+  const parts = [];
+  if (cfg.contactEmail) parts.push(`email <a href="mailto:${esc(cfg.contactEmail)}">${esc(cfg.contactEmail)}</a>`);
+  if (cfg.contactX) parts.push(`X (Twitter) <a href="https://x.com/${esc(cfg.contactX)}" rel="noopener">@${esc(cfg.contactX)}</a>`);
+  return parts.length ? 'You can contact us by ' + parts.join(' or ') + '.' : 'You can contact us through the in-app Copilot or by replying to any email we send you.';
 }
 
 function privacy(cfg) {
@@ -31,7 +32,7 @@ function privacy(cfg) {
 
 <h2>1. Data we collect</h2>
 <ul>
-<li><b>Account data:</b> your email address and a password hash (we never store your password itself), or your Google account ID and name if you sign in with Google, or your wallet address if you sign in with a wallet. Your role (candidate or employer).</li>
+<li><b>Account data:</b> your email address and a password hash (we never store your password itself), or your Google account ID and name if you sign in with Google, or your wallet address if you sign in with a wallet, or your Internet Identity principal (a pseudonymous ID) if you sign in with Internet Identity. Your role (candidate or employer).</li>
 <li><b>Profile data you choose to add:</b> display name, headline, location, short bio, contact email, company name and description, and a payout wallet address for referral commissions.</li>
 <li><b>CV data (candidates):</b> the text extracted from the CV you upload or paste (we keep the text, not the original file), and the AI-generated profile, ATS analysis, job matches, cover-letter drafts and application records.</li>
 <li><b>Employer data:</b> job postings, applicants' screening results and the stage you set for each applicant.</li>
@@ -58,6 +59,7 @@ function privacy(cfg) {
 <ul>
 <li><b>Railway</b> hosts the application and database.</li>
 <li><b>Anthropic</b> processes text for AI features, as described above.</li>
+<li><b>Internet Identity</b> (identity.ic0.app, run by the DFINITY Foundation) if you use Internet Identity sign-in. We receive only a pseudonymous principal, never your device or passkey details.</li>
 <li><b>Google</b> if you use Google sign-in (and Google Fonts load the page's typefaces).</li>
 <li><b>Blockchain nodes and explorers</b> (BNB Smart Chain RPC, ICP ledger) are queried with public transaction hashes to verify payments.</li>
 <li><b>RemoteOK</b> and <b>CoinGecko</b> supply public job and price data; no personal data is sent to them.</li>

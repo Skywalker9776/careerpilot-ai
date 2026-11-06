@@ -121,7 +121,7 @@
     <div class="text-center text-[11px] text-gray-600 my-3">or</div>
     <div id="googleBtn" class="flex justify-center min-h-[44px]"></div>
     <button id="walletLogin" class="btn2 w-full mt-2">Continue with wallet (MetaMask, Trust Wallet…)</button>
-    <button disabled class="btn2 w-full mt-2 opacity-50 cursor-not-allowed" title="Not available yet">Internet Identity — coming soon</button>
+    <button id="iiLogin" class="btn2 w-full mt-2">Continue with Internet Identity</button>
     <button id="authSwitch" class="w-full text-xs text-gray-500 mt-3 underline"></button>
   </div>
 </div>
@@ -190,6 +190,10 @@ $('#authGo').onclick = async () => {
   try { await finishAuth(await api('/' + authMode, { method: 'POST', json: { email: $('#authEmail').value, password: $('#authPass').value, ...authExtra() } })); }
   catch (e) { authErr(e); }
 };
+$('#iiLogin').onclick = async () => {
+  try { const w = await signWithII(); await finishAuth(await api('/auth/ii', { method: 'POST', json: { ...w, ...authExtra() } })); }
+  catch (e) { authErr(new Error(e.message || 'Internet Identity sign-in cancelled.')); }
+};
 $('#walletLogin').onclick = async () => {
   try { const w = await signWithWallet(); await finishAuth(await api('/auth/wallet', { method: 'POST', json: { ...w, ...authExtra() } })); }
   catch (e) { authErr(new Error(e.message || 'Wallet sign-in cancelled.')); }
@@ -208,6 +212,33 @@ async function mountGoogle(el, handler) {
   el.innerHTML = '';
   if (!(await loadGoogle())) { el.innerHTML = '<div class="text-[11px] text-gray-600">Google sign-in is not enabled on this site yet.</div>'; return; }
   gHandler = handler; google.accounts.id.renderButton(el, { theme: 'filled_black', size: 'large', width: 280, text: 'continue_with' });
+}
+// Internet Identity: a throwaway P-256 session key is delegated by II, then signs our one-time challenge.
+const II_ORIGIN = 'https://identity.ic0.app';
+const toHex = u => Array.from(new Uint8Array(u), b => b.toString(16).padStart(2, '0')).join('');
+async function signWithII() {
+  if (!window.crypto || !crypto.subtle) throw new Error('This browser cannot do secure sign-in here (needs HTTPS).');
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const spki = new Uint8Array(await crypto.subtle.exportKey('spki', kp.publicKey));
+  const ch = await api('/auth/ii/nonce', { method: 'POST', json: { sessionPublicKey: toHex(spki) } });
+  const auth = await new Promise((resolve, reject) => {
+    const win = window.open(II_ORIGIN + '/#authorize', 'ii_login', 'width=420,height=680');
+    if (!win) return reject(new Error('Popup blocked. Allow popups for this site and try again.'));
+    let timer; const done = (fn, v) => { window.removeEventListener('message', onMsg); clearInterval(timer); try { win.close(); } catch {} fn(v); };
+    const onMsg = ev => {
+      if (ev.origin !== II_ORIGIN) return; const d = ev.data || {};
+      if (d.kind === 'authorize-ready') win.postMessage({ kind: 'authorize-client', sessionPublicKey: spki, maxTimeToLive: BigInt(5 * 60) * 1000000000n }, II_ORIGIN);
+      else if (d.kind === 'authorize-client-success') done(resolve, d);
+      else if (d.kind === 'authorize-client-failure') done(reject, new Error(d.text || 'Internet Identity sign-in failed.'));
+    };
+    window.addEventListener('message', onMsg);
+    timer = setInterval(() => { if (win.closed) done(reject, new Error('Internet Identity window was closed.')); }, 800);
+  });
+  if (!auth.delegations || auth.delegations.length !== 1) throw new Error('Unexpected Internet Identity response.');
+  const d = auth.delegations[0], dl = d.delegation;
+  if (dl.targets && dl.targets.length) throw new Error('Unexpected Internet Identity response.');
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.privateKey, new TextEncoder().encode(ch.message));
+  return { sessionPublicKey: toHex(spki), userPublicKey: toHex(auth.userPublicKey), delegationPubkey: toHex(dl.pubkey), expiration: BigInt(dl.expiration).toString(), delegationSignature: toHex(d.signature), signature: toHex(sig) };
 }
 async function signWithWallet() {
   if (!window.ethereum) throw new Error('No EVM wallet found. Install MetaMask or Trust Wallet, or open this page in your wallet app\'s browser.');
@@ -248,7 +279,7 @@ async function boot() {
   if (!TOKEN) return showLanding();
   try { ME = (await api('/me')).user; } catch { return showLanding(); }
   $('#dashTitle').textContent = ME.role === 'employer' ? ME.companyName + ' — hiring portal' : 'Candidate dashboard';
-  $('#whoami').textContent = `${ME.email || ME.displayName}${ME.role === 'candidate' ? ' · plan: ' + ME.plan + (ME.planExpires ? ' until ' + new Date(ME.planExpires * 1000).toLocaleDateString() : '') : ''}`;
+  $('#whoami').textContent = `${ME.email || ME.displayName}${ME.founder ? ' · Founder' : ''}${ME.role === 'candidate' ? ' · plan: ' + ME.plan + (ME.planExpires ? ' until ' + new Date(ME.planExpires * 1000).toLocaleDateString() : '') : ''}`;
   setTab(tab && TABS[ME.role].some(t => t[0] === tab) ? tab : null);
 }
 const body = h => { $('#tabBody').innerHTML = h; };
@@ -378,7 +409,7 @@ async function viewMarket() {
 // ---- Billing (candidates)
 async function viewBilling() {
   const P = PRICING, c = P.configured, EMP = ME.role === 'employer', ITEMS = EMP ? { listing: P.products.listing, featured: P.products.featured } : P.plans;
-  body(`<div class="card max-w-2xl"><h3 class="font-display text-xs text-purple-400 mb-4">${EMP ? `BUY LISTING CREDITS (you have ${ME.credits.listing} listing, ${ME.credits.featured} featured)` : 'UPGRADE'} · PAY ON-CHAIN</h3>
+  body(`<div class="card max-w-2xl"><h3 class="font-display text-xs text-purple-400 mb-4">${EMP ? `BUY LISTING CREDITS (you have ${ME.founder ? 'unlimited, as founder' : ME.credits.listing + ' listing, ' + ME.credits.featured + ' featured'})` : 'UPGRADE'} · PAY ON-CHAIN</h3>
     <div class="grid sm:grid-cols-2 gap-3 mb-4"><select id="bPlan" class="inp">${Object.entries(ITEMS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join('')}</select><select id="bChain" class="inp"><option value="BNB">BNB (BNB Smart Chain)</option><option value="ICP">ICP</option></select></div>
     <div id="bInfo" class="text-sm text-gray-300 mb-4"></div><div id="bBnb" class="mb-4"><button id="bPay" class="btn">PAY WITH WALLET</button></div>
     <div class="text-xs text-gray-500 mb-2">Already sent it? Paste the transaction hash:</div>
@@ -404,7 +435,7 @@ async function viewBilling() {
 }
 
 // ---- Profile
-const provName = p => ({ google: 'Google', evm: 'Wallet' }[p] || p);
+const provName = p => ({ google: 'Google', evm: 'Wallet', ii: 'Internet Identity' }[p] || p);
 async function viewProfile() {
   ME = (await api('/me')).user; const emp = ME.role === 'employer';
   body(`<div class="grid lg:grid-cols-2 gap-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">YOUR PROFILE</h3>
@@ -420,13 +451,14 @@ async function viewProfile() {
     <div class="space-y-2 mb-4 text-sm">${ME.hasPassword ? `<div class="flex justify-between"><span>Email + password</span><span class="text-gray-500 text-xs">${esc(ME.email)}</span></div>` : ''}
     ${ME.identities.map(i => `<div class="flex justify-between items-center gap-2"><span>${provName(i.provider)} <span class="text-gray-500 text-xs font-mono break-all">${esc(i.label.length > 22 ? i.label.slice(0, 8) + '…' + i.label.slice(-6) : i.label)}</span></span><button class="btn2" data-unlink="${i.id}">Remove</button></div>`).join('')}</div>
     <div id="pGoogle" class="mb-2"></div><button id="pLinkWallet" class="btn2 w-full mb-2">Link a wallet</button>
-    <div class="text-[11px] text-gray-600 mb-4">Internet Identity sign-in is not available yet.</div>
+    <button id="pLinkII" class="btn2 w-full mb-4">Link Internet Identity</button>
     <h4 class="text-xs text-gray-400 mb-2">${ME.hasPassword ? 'Change password' : 'Set a password (optional)'}</h4>
     ${ME.hasPassword ? '<input id="pwCur" type="password" class="inp mb-2" placeholder="Current password">' : ''}<input id="pwNew" type="password" class="inp mb-2" placeholder="New password (8+ characters)"><button id="pwGo" class="btn2">Save password</button></div></div>`);
   $('#pSave').onclick = run($('#pSave'), 'Saving…', async () => {
     await api('/profile', { method: 'POST', json: { displayName: $('#pName').value, headline: $('#pHead').value, location: $('#pLoc').value, bio: $('#pBio').value, contactEmail: $('#pContact').value, ...(emp ? { companyDesc: $('#pDesc').value } : {}) } }); toast('Profile saved.'); });
   document.querySelectorAll('[data-unlink]').forEach(b => b.onclick = async () => { try { await api('/identities/' + b.dataset.unlink, { method: 'DELETE' }); viewProfile(); } catch (e) { toast(e.message, 6000); } });
   $('#pLinkWallet').onclick = run($('#pLinkWallet'), 'Waiting for wallet…', async () => { const w = await signWithWallet(); await api('/identities/wallet', { method: 'POST', json: w }); toast('Wallet linked.'); viewProfile(); });
+  $('#pLinkII').onclick = run($('#pLinkII'), 'Waiting for Internet Identity…', async () => { const w = await signWithII(); await api('/identities/ii', { method: 'POST', json: w }); toast('Internet Identity linked.'); viewProfile(); });
   mountGoogle($('#pGoogle'), async cred => { try { await api('/identities/google', { method: 'POST', json: { credential: cred } }); toast('Google linked.'); viewProfile(); } catch (e) { toast(e.message, 6000); } });
   $('#pwGo').onclick = run($('#pwGo'), 'Saving…', async () => { await api('/auth/set-password', { method: 'POST', json: { current: ME.hasPassword ? $('#pwCur').value : undefined, password: $('#pwNew').value } }); toast('Password saved.'); viewProfile(); });
 }
@@ -442,7 +474,7 @@ async function viewWallet() {
     <div class="flex gap-2 mb-1"><input id="wPayout" class="inp font-mono !text-xs" placeholder="BNB address (0x…), ICP account ID or principal" value="${esc(w.payoutWallet)}"><button id="wSave" class="btn2">Save</button></div>
     <p class="text-[11px] text-gray-600">Commissions are paid manually. Double-check the address; payouts to a wrong address cannot be reversed.</p>
     <h4 class="text-xs text-gray-400 mt-4 mb-1">${emp ? 'Credits' : 'Plan'}</h4>
-    <div class="text-sm">${emp ? `${w.credits.listing} listing credit(s) · ${w.credits.featured} featured credit(s)` : (w.plan === 'free' ? 'Free plan' : esc(P.plans[w.plan]?.name || w.plan) + ' until ' + new Date(w.planExpires * 1000).toLocaleDateString())}</div></div>
+    <div class="text-sm">${w.founder ? 'Founder account: all features, premium services and job listings are free.' : emp ? `${w.credits.listing} listing credit(s) · ${w.credits.featured} featured credit(s)` : (w.plan === 'free' ? 'Free plan' : esc(P.plans[w.plan]?.name || w.plan) + ' until ' + new Date(w.planExpires * 1000).toLocaleDateString())}</div></div>
     <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">OFFICIAL PAYMENT ADDRESSES</h3>
     <p class="text-[11px] text-gray-500 mb-2">Pay only these addresses, on these networks. Verify with the Billing tab. See <a href="/fees" target="_blank" class="underline">Fees</a>.</p>
     <div class="text-xs text-gray-400">BNB Smart Chain (BEP-20)</div><div class="font-mono text-xs break-all bg-gray-900 rounded p-2 mb-3 select-all">${esc(w.merchant.bnb || 'not configured')}</div>
@@ -482,7 +514,7 @@ async function viewEJobs() {
     <div class="grid grid-cols-2 gap-2 mb-2"><input id="jloc" class="inp" placeholder="Location" value="Remote"><input id="jsal" class="inp" placeholder="Salary (optional)"></div>
     <textarea id="jd" rows="9" class="inp mb-2" placeholder="Job description"></textarea>
     <label class="flex gap-2 text-xs text-gray-400 mb-2"><input type="checkbox" id="jFeat"> Featured listing (uses 1 Featured credit; shown first)</label>
-    <div class="text-[11px] text-gray-500 mb-3">Credits: ${ME.credits.listing} listing · ${ME.credits.featured} featured. Your first ${PRICING.freeListings} listing(s) are free; after that each listing needs a credit and lasts ${PRICING.listingDays} days. <a href="#" id="buyCredits" class="underline">Buy credits</a> · <a href="/fees" target="_blank" class="underline">Fees</a></div>
+    <div class="text-[11px] text-gray-500 mb-3">${ME.founder ? 'Founder account: listings and Featured listings are free for you.' : ''} Credits: ${ME.credits.listing} listing · ${ME.credits.featured} featured. Your first ${PRICING.freeListings} listing(s) are free; after that each listing needs a credit and lasts ${PRICING.listingDays} days. <a href="#" id="buyCredits" class="underline">Buy credits</a> · <a href="/fees" target="_blank" class="underline">Fees</a></div>
     <div class="flex gap-2"><button id="jAi" class="btn2">✨ AI write description</button><button id="jPost" class="btn">POST JOB</button></div>
     <p class="text-[11px] text-gray-600 mt-3">Applicants are screened blind: names, emails and CVs stay hidden until you shortlist. AI scores are decision support only.</p></div>
     <div class="lg:col-span-3 space-y-3">${jobs.map(j => `<div class="card !p-4"><div class="flex justify-between gap-2"><div><div class="font-semibold text-sm">${esc(j.title)} <span class="chip">${esc(j.status)}</span>${j.featured ? ' <span class="chip">Featured</span>' : ''}</div><div class="text-xs text-gray-500">${j.applicants} applicant(s) · ${esc(j.location)}${j.expires_at ? ' · expires ' + new Date(j.expires_at * 1000).toLocaleDateString() : ''}</div></div>
