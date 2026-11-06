@@ -78,7 +78,7 @@
 
   <section id="pricing" class="max-w-4xl mx-auto px-4 py-12">
     <h2 class="font-display text-2xl font-bold text-center mb-2">Candidate pricing</h2>
-    <p class="text-center text-gray-500 text-sm mb-6">Free: 2 AI drafts. Paid plans run 30 days and are paid on-chain, no auto-renewal. Employers can post up to <span id="empJobs">3</span> open jobs free during beta.</p>
+    <p class="text-center text-gray-500 text-sm mb-6">Free: 2 AI drafts. Paid plans run 30 days and are paid on-chain, no auto-renewal. Employers: the first <span id="empJobs">1</span> job listing is free during beta; further and Featured listings are paid per use (see <a href="/fees" class="underline">Fees</a>).</p>
     <div class="flex justify-center mb-8"><select id="landingAsset" class="inp !w-auto font-mono"><option value="bnb">Pay in BNB (BNB Smart Chain)</option><option value="icp">Pay in ICP</option></select></div>
     <div id="planCards" class="grid md:grid-cols-2 gap-6"></div>
   </section>
@@ -101,6 +101,10 @@
   <div id="tabBody"></div>
 </main>
 
+<footer class="max-w-6xl mx-auto px-4 py-8 text-xs text-gray-500 text-center border-t border-gray-900">
+  <a href="/privacy" class="underline mx-2">Privacy Policy</a><a href="/terms" class="underline mx-2">Terms</a><a href="/fees" class="underline mx-2">Fees</a>
+</footer>
+
 <!-- AUTH MODAL -->
 <div id="authModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
   <div class="bg-gray-950 border border-gray-800 rounded-2xl p-6 w-full max-w-sm">
@@ -111,8 +115,13 @@
     <input id="authCompany" placeholder="Company name" class="inp mb-3 hidden">
     <input id="authEmail" type="email" placeholder="Email" class="inp mb-3">
     <input id="authPass" type="password" placeholder="Password (8+ characters)" class="inp mb-3">
+    <label class="flex gap-2 text-[11px] text-gray-400 mb-3"><input type="checkbox" id="authAgree" class="mt-0.5"><span>I agree to the <a href="/terms" target="_blank" class="underline">Terms</a> and <a href="/privacy" target="_blank" class="underline">Privacy Policy</a> (needed to create an account).</span></label>
     <div id="authErr" class="text-red-400 text-xs mb-3 hidden"></div>
     <button id="authGo" class="btn w-full">CONTINUE</button>
+    <div class="text-center text-[11px] text-gray-600 my-3">or</div>
+    <div id="googleBtn" class="flex justify-center min-h-[44px]"></div>
+    <button id="walletLogin" class="btn2 w-full mt-2">Continue with wallet (MetaMask, Trust Wallet…)</button>
+    <button disabled class="btn2 w-full mt-2 opacity-50 cursor-not-allowed" title="Not available yet">Internet Identity — coming soon</button>
     <button id="authSwitch" class="w-full text-xs text-gray-500 mt-3 underline"></button>
   </div>
 </div>
@@ -170,16 +179,44 @@ function drawAuth() {
   $('#authCompany').classList.toggle('hidden', !(authMode === 'signup' && authRole === 'employer'));
   $('#roleC').classList.toggle('tab-on', authRole === 'candidate'); $('#roleE').classList.toggle('tab-on', authRole === 'employer');
 }
-function openAuth(mode, role) { authMode = mode; if (role) authRole = role; $('#authModal').classList.remove('hidden'); drawAuth(); }
+function openAuth(mode, role) { authMode = mode; if (role) authRole = role; $('#authModal').classList.remove('hidden'); drawAuth(); mountGoogle($('#googleBtn'), async cred => { try { await finishAuth(await api('/auth/google', { method: 'POST', json: { credential: cred, ...authExtra() } })); } catch (e) { authErr(e); } }); }
 function closeAuth() { $('#authModal').classList.add('hidden'); $('#authErr').classList.add('hidden'); }
 $('#roleC').onclick = () => { authRole = 'candidate'; drawAuth(); }; $('#roleE').onclick = () => { authRole = 'employer'; drawAuth(); };
 $('#authSwitch').onclick = () => { authMode = authMode === 'signup' ? 'login' : 'signup'; drawAuth(); };
+const authErr = e => { const el = $('#authErr'); el.textContent = e.message; el.classList.remove('hidden'); };
+const authExtra = () => ({ ref: REF, role: authRole, companyName: $('#authCompany').value, agree: $('#authAgree').checked });
+async function finishAuth(j) { TOKEN = j.token; localStorage.setItem('cp_token', TOKEN); closeAuth(); tab = null; await boot(); }
 $('#authGo').onclick = async () => {
-  try {
-    const j = await api('/' + authMode, { method: 'POST', json: { email: $('#authEmail').value, password: $('#authPass').value, ref: REF, role: authRole, companyName: $('#authCompany').value } });
-    TOKEN = j.token; localStorage.setItem('cp_token', TOKEN); closeAuth(); tab = null; await boot();
-  } catch (e) { const el = $('#authErr'); el.textContent = e.message; el.classList.remove('hidden'); }
+  try { await finishAuth(await api('/' + authMode, { method: 'POST', json: { email: $('#authEmail').value, password: $('#authPass').value, ...authExtra() } })); }
+  catch (e) { authErr(e); }
 };
+$('#walletLogin').onclick = async () => {
+  try { const w = await signWithWallet(); await finishAuth(await api('/auth/wallet', { method: 'POST', json: { ...w, ...authExtra() } })); }
+  catch (e) { authErr(new Error(e.message || 'Wallet sign-in cancelled.')); }
+};
+
+// Google + wallet signature helpers
+let AUTHCFG = { google: null }, gReady = null, gHandler = null;
+function loadGoogle() {
+  if (!AUTHCFG.google) return Promise.resolve(false);
+  if (gReady) return gReady;
+  gReady = new Promise(res => { const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = () => { google.accounts.id.initialize({ client_id: AUTHCFG.google, callback: r => gHandler && gHandler(r.credential) }); res(true); }; sc.onerror = () => res(false); document.head.appendChild(sc); });
+  return gReady;
+}
+async function mountGoogle(el, handler) {
+  el.innerHTML = '';
+  if (!(await loadGoogle())) { el.innerHTML = '<div class="text-[11px] text-gray-600">Google sign-in is not enabled on this site yet.</div>'; return; }
+  gHandler = handler; google.accounts.id.renderButton(el, { theme: 'filled_black', size: 'large', width: 280, text: 'continue_with' });
+}
+async function signWithWallet() {
+  if (!window.ethereum) throw new Error('No EVM wallet found. Install MetaMask or Trust Wallet, or open this page in your wallet app\'s browser.');
+  const [a] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const ch = await api('/auth/wallet/nonce', { method: 'POST', json: { address: a } });
+  const hex = '0x' + Array.from(new TextEncoder().encode(ch.message)).map(b => b.toString(16).padStart(2, '0')).join('');
+  const signature = await window.ethereum.request({ method: 'personal_sign', params: [hex, a] });
+  WALLET = a; return { address: a, signature };
+}
 $('#authBtn').onclick = () => ME ? setTab(tab) : openAuth('login');
 function logout() { TOKEN = ''; ME = null; CHAT = []; localStorage.removeItem('cp_token'); showLanding(); }
 
@@ -193,10 +230,10 @@ $('#walletBtn').onclick = connectWallet;
 
 // shell
 const TABS = {
-  candidate: [['cv', 'CV & Analyst'], ['jobs', 'Jobs'], ['apps', 'Applications'], ['autopilot', 'Autopilot'], ['agent', 'Copilot'], ['market', 'Market'], ['billing', 'Plan & Payment'], ['refs', 'Referrals'], ['log', 'Activity']],
-  employer: [['ejobs', 'Jobs & Hiring'], ['agent', 'Hiring Copilot'], ['market', 'Market'], ['refs', 'Referrals'], ['log', 'Activity']],
+  candidate: [['cv', 'CV & Analyst'], ['jobs', 'Jobs'], ['apps', 'Applications'], ['autopilot', 'Autopilot'], ['agent', 'Copilot'], ['market', 'Market'], ['billing', 'Plan & Payment'], ['wallet', 'Wallet'], ['refs', 'Referrals'], ['profile', 'Profile'], ['log', 'Activity']],
+  employer: [['ejobs', 'Jobs & Hiring'], ['agent', 'Hiring Copilot'], ['market', 'Market'], ['billing', 'Credits & Fees'], ['wallet', 'Wallet'], ['refs', 'Referrals'], ['profile', 'Profile'], ['log', 'Activity']],
 };
-const VIEWS = { cv: viewCv, jobs: viewJobs, apps: viewApps, autopilot: viewAutopilot, agent: viewAgent, market: viewMarket, billing: viewBilling, refs: viewRefs, log: viewLog, ejobs: viewEJobs };
+const VIEWS = { cv: viewCv, jobs: viewJobs, apps: viewApps, autopilot: viewAutopilot, agent: viewAgent, market: viewMarket, billing: viewBilling, wallet: viewWallet, profile: viewProfile, refs: viewRefs, log: viewLog, ejobs: viewEJobs };
 function showLanding() { $('#landing').classList.remove('hidden'); $('#dash').classList.add('hidden'); $('#authBtn').textContent = 'LOG IN / SIGN UP'; }
 function setTab(t) {
   $('#landing').classList.add('hidden'); $('#dash').classList.remove('hidden'); $('#authBtn').textContent = 'DASHBOARD';
@@ -207,10 +244,11 @@ function setTab(t) {
 }
 async function boot() {
   await loadPricing().catch(() => {});
+  api('/auth/config').then(c => { AUTHCFG = c; }).catch(() => {});
   if (!TOKEN) return showLanding();
   try { ME = (await api('/me')).user; } catch { return showLanding(); }
   $('#dashTitle').textContent = ME.role === 'employer' ? ME.companyName + ' — hiring portal' : 'Candidate dashboard';
-  $('#whoami').textContent = `${ME.email}${ME.role === 'candidate' ? ' · plan: ' + ME.plan + (ME.planExpires ? ' until ' + new Date(ME.planExpires * 1000).toLocaleDateString() : '') : ''}`;
+  $('#whoami').textContent = `${ME.email || ME.displayName}${ME.role === 'candidate' ? ' · plan: ' + ME.plan + (ME.planExpires ? ' until ' + new Date(ME.planExpires * 1000).toLocaleDateString() : '') : ''}`;
   setTab(tab && TABS[ME.role].some(t => t[0] === tab) ? tab : null);
 }
 const body = h => { $('#tabBody').innerHTML = h; };
@@ -338,31 +376,81 @@ async function viewMarket() {
 }
 
 // ---- Billing (candidates)
-function viewBilling() {
-  const P = PRICING, c = P.configured;
-  body(`<div class="card max-w-2xl"><h3 class="font-display text-xs text-purple-400 mb-4">UPGRADE · PAY ON-CHAIN</h3>
-    <div class="grid sm:grid-cols-2 gap-3 mb-4"><select id="bPlan" class="inp">${Object.entries(P.plans).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join('')}</select><select id="bChain" class="inp"><option value="BNB">BNB (BNB Smart Chain)</option><option value="ICP">ICP</option></select></div>
+async function viewBilling() {
+  const P = PRICING, c = P.configured, EMP = ME.role === 'employer', ITEMS = EMP ? { listing: P.products.listing, featured: P.products.featured } : P.plans;
+  body(`<div class="card max-w-2xl"><h3 class="font-display text-xs text-purple-400 mb-4">${EMP ? `BUY LISTING CREDITS (you have ${ME.credits.listing} listing, ${ME.credits.featured} featured)` : 'UPGRADE'} · PAY ON-CHAIN</h3>
+    <div class="grid sm:grid-cols-2 gap-3 mb-4"><select id="bPlan" class="inp">${Object.entries(ITEMS).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join('')}</select><select id="bChain" class="inp"><option value="BNB">BNB (BNB Smart Chain)</option><option value="ICP">ICP</option></select></div>
     <div id="bInfo" class="text-sm text-gray-300 mb-4"></div><div id="bBnb" class="mb-4"><button id="bPay" class="btn">PAY WITH WALLET</button></div>
     <div class="text-xs text-gray-500 mb-2">Already sent it? Paste the transaction hash:</div>
     <div class="flex gap-2"><input id="bHash" class="inp font-mono !text-xs" placeholder="Transaction hash"><button id="bVerify" class="btn2">Verify</button></div>
-    <p class="text-[11px] text-gray-600 mt-4">The server checks the transaction on-chain (recipient, amount, confirmations) before activating your plan; each transaction works once. Only native BNB and ICP transfers are accepted. Payments are non-refundable unless you contact support.</p></div>`);
-  const draw = () => { const plan = $('#bPlan').value, ch = $('#bChain').value, p = P.plans[plan], addr = ch === 'BNB' ? P.merchant.bnb : P.merchant.icp, amt = ch === 'BNB' ? p.bnb : p.icp;
+    <p class="text-[11px] text-gray-600 mt-4">The server checks the transaction on-chain (recipient, amount, confirmations) before crediting you; each transaction works once. See <a href="/fees" target="_blank" class="underline">Fees</a>. Only native BNB and ICP transfers are accepted. Payments are non-refundable unless you contact support.</p></div>`);
+  const draw = () => { const plan = $('#bPlan').value, ch = $('#bChain').value, p = ITEMS[plan], addr = ch === 'BNB' ? P.merchant.bnb : P.merchant.icp, amt = ch === 'BNB' ? p.bnb : p.icp;
     $('#bInfo').innerHTML = c[ch.toLowerCase()] ? `Send <b>${esc(amt)} ${ch}</b> to:<div class="font-mono text-xs break-all bg-gray-900 rounded p-2 mt-1 select-all">${esc(addr)}</div>${ch === 'ICP' ? '<div class="text-xs text-gray-500 mt-1">Use the account identifier above (not a principal).</div>' : ''}` : `<span class="text-amber-400">${ch} payments are not configured on this server yet.</span>`;
     $('#bBnb').classList.toggle('hidden', ch !== 'BNB' || !c.bnb); };
   $('#bPlan').onchange = $('#bChain').onchange = draw; draw();
-  const verify = async h => { try { await api('/payments/verify', { method: 'POST', json: { chain: $('#bChain').value, plan: $('#bPlan').value, txHash: h } }); toast('Payment verified — plan activated.'); await boot(); setTab('billing'); } catch (e) { toast(e.message, 7000); } };
+  const verify = async h => { try { await api('/payments/verify', { method: 'POST', json: { chain: $('#bChain').value, plan: $('#bPlan').value, txHash: h } }); toast('Payment verified.'); await boot(); setTab('billing'); } catch (e) { toast(e.message, 7000); } };
   $('#bVerify').onclick = () => verify($('#bHash').value.trim());
   $('#bPay').onclick = async () => {
     if (!window.ethereum) return toast('No EVM wallet found. Send manually and paste the hash.');
     try { await connectWallet();
       try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x38' }] }); } catch (e) { if (e.code === 4902) await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x38', chainName: 'BNB Smart Chain', nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }, rpcUrls: ['https://bsc-dataseed.binance.org'], blockExplorerUrls: ['https://bscscan.com'] }] }); else throw e; }
-      const [a, b = ''] = P.plans[$('#bPlan').value].bnb.split('.'), wei = BigInt(a) * 10n ** 18n + BigInt((b + '0'.repeat(18)).slice(0, 18));
+      const [a, b = ''] = ITEMS[$('#bPlan').value].bnb.split('.'), wei = BigInt(a) * 10n ** 18n + BigInt((b + '0'.repeat(18)).slice(0, 18));
       const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: WALLET, to: P.merchant.bnb, value: '0x' + wei.toString(16) }] });
       $('#bHash').value = hash; toast('Sent. Waiting for confirmations…', 6000);
-      for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 6000)); try { await api('/payments/verify', { method: 'POST', json: { chain: 'BNB', plan: $('#bPlan').value, txHash: hash } }); toast('Payment verified — plan activated.'); await boot(); return setTab('billing'); } catch (e) { if (!/confirmation|pending|not found/i.test(e.message)) return toast(e.message, 7000); } }
+      for (let i = 0; i < 20; i++) { await new Promise(r => setTimeout(r, 6000)); try { await api('/payments/verify', { method: 'POST', json: { chain: 'BNB', plan: $('#bPlan').value, txHash: hash } }); toast('Payment verified.'); await boot(); return setTab('billing'); } catch (e) { if (!/confirmation|pending|not found/i.test(e.message)) return toast(e.message, 7000); } }
       toast('Still confirming — press Verify in a minute.');
     } catch (e) { toast(e.message || 'Wallet action cancelled.'); }
   };
+}
+
+// ---- Profile
+const provName = p => ({ google: 'Google', evm: 'Wallet' }[p] || p);
+async function viewProfile() {
+  ME = (await api('/me')).user; const emp = ME.role === 'employer';
+  body(`<div class="grid lg:grid-cols-2 gap-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">YOUR PROFILE</h3>
+    <input id="pName" class="inp mb-2" placeholder="Display name" value="${esc(ME.displayName)}">
+    <input id="pHead" class="inp mb-2" placeholder="Headline (e.g. Solidity auditor)" value="${esc(ME.headline)}">
+    <input id="pLoc" class="inp mb-2" placeholder="Location" value="${esc(ME.location)}">
+    <textarea id="pBio" rows="4" class="inp mb-2" placeholder="Short bio (600 characters max)">${esc(ME.bio)}</textarea>
+    <input id="pContact" class="inp mb-2" placeholder="Contact email (used for applications)" value="${esc(ME.contactEmail || (ME.realEmail ? ME.email : ''))}">
+    ${emp ? `<textarea id="pDesc" rows="3" class="inp mb-2" placeholder="Company description">${esc(ME.companyDesc)}</textarea>` : ''}
+    <button id="pSave" class="btn">SAVE PROFILE</button>
+    <p class="text-[11px] text-gray-600 mt-3">Employers see only an alias until they shortlist you. Never put seed phrases or private keys anywhere.</p></div>
+    <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">SIGN-IN METHODS</h3>
+    <div class="space-y-2 mb-4 text-sm">${ME.hasPassword ? `<div class="flex justify-between"><span>Email + password</span><span class="text-gray-500 text-xs">${esc(ME.email)}</span></div>` : ''}
+    ${ME.identities.map(i => `<div class="flex justify-between items-center gap-2"><span>${provName(i.provider)} <span class="text-gray-500 text-xs font-mono break-all">${esc(i.label.length > 22 ? i.label.slice(0, 8) + '…' + i.label.slice(-6) : i.label)}</span></span><button class="btn2" data-unlink="${i.id}">Remove</button></div>`).join('')}</div>
+    <div id="pGoogle" class="mb-2"></div><button id="pLinkWallet" class="btn2 w-full mb-2">Link a wallet</button>
+    <div class="text-[11px] text-gray-600 mb-4">Internet Identity sign-in is not available yet.</div>
+    <h4 class="text-xs text-gray-400 mb-2">${ME.hasPassword ? 'Change password' : 'Set a password (optional)'}</h4>
+    ${ME.hasPassword ? '<input id="pwCur" type="password" class="inp mb-2" placeholder="Current password">' : ''}<input id="pwNew" type="password" class="inp mb-2" placeholder="New password (8+ characters)"><button id="pwGo" class="btn2">Save password</button></div></div>`);
+  $('#pSave').onclick = run($('#pSave'), 'Saving…', async () => {
+    await api('/profile', { method: 'POST', json: { displayName: $('#pName').value, headline: $('#pHead').value, location: $('#pLoc').value, bio: $('#pBio').value, contactEmail: $('#pContact').value, ...(emp ? { companyDesc: $('#pDesc').value } : {}) } }); toast('Profile saved.'); });
+  document.querySelectorAll('[data-unlink]').forEach(b => b.onclick = async () => { try { await api('/identities/' + b.dataset.unlink, { method: 'DELETE' }); viewProfile(); } catch (e) { toast(e.message, 6000); } });
+  $('#pLinkWallet').onclick = run($('#pLinkWallet'), 'Waiting for wallet…', async () => { const w = await signWithWallet(); await api('/identities/wallet', { method: 'POST', json: w }); toast('Wallet linked.'); viewProfile(); });
+  mountGoogle($('#pGoogle'), async cred => { try { await api('/identities/google', { method: 'POST', json: { credential: cred } }); toast('Google linked.'); viewProfile(); } catch (e) { toast(e.message, 6000); } });
+  $('#pwGo').onclick = run($('#pwGo'), 'Saving…', async () => { await api('/auth/set-password', { method: 'POST', json: { current: ME.hasPassword ? $('#pwCur').value : undefined, password: $('#pwNew').value } }); toast('Password saved.'); viewProfile(); });
+}
+
+// ---- Wallet
+async function viewWallet() {
+  const w = await api('/wallet'), P = PRICING, emp = ME.role === 'employer';
+  const txLink = p => p.chain === 'BNB' ? 'https://bscscan.com/tx/' + p.tx_hash : 'https://dashboard.internetcomputer.org/transaction/' + p.tx_hash;
+  const tot = Object.entries(w.referralEarnings.reduce((m, r) => { const k = r.asset + ' ' + r.status; m[k] = (m[k] || 0) + Number(r.amount); return m; }, {})).map(([k, v]) => v.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') + ' ' + k).join(' · ') || 'none yet';
+  body(`<div class="grid lg:grid-cols-2 gap-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">MY WALLETS</h3>
+    <div class="text-sm mb-3">Connected now: <span class="font-mono text-xs">${WALLET ? esc(WALLET) : 'none'}</span></div><button id="wConn" class="btn2 mb-4">Connect wallet</button>
+    <h4 class="text-xs text-gray-400 mb-1">Payout wallet (referral commissions)</h4>
+    <div class="flex gap-2 mb-1"><input id="wPayout" class="inp font-mono !text-xs" placeholder="BNB address (0x…), ICP account ID or principal" value="${esc(w.payoutWallet)}"><button id="wSave" class="btn2">Save</button></div>
+    <p class="text-[11px] text-gray-600">Commissions are paid manually. Double-check the address; payouts to a wrong address cannot be reversed.</p>
+    <h4 class="text-xs text-gray-400 mt-4 mb-1">${emp ? 'Credits' : 'Plan'}</h4>
+    <div class="text-sm">${emp ? `${w.credits.listing} listing credit(s) · ${w.credits.featured} featured credit(s)` : (w.plan === 'free' ? 'Free plan' : esc(P.plans[w.plan]?.name || w.plan) + ' until ' + new Date(w.planExpires * 1000).toLocaleDateString())}</div></div>
+    <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">OFFICIAL PAYMENT ADDRESSES</h3>
+    <p class="text-[11px] text-gray-500 mb-2">Pay only these addresses, on these networks. Verify with the Billing tab. See <a href="/fees" target="_blank" class="underline">Fees</a>.</p>
+    <div class="text-xs text-gray-400">BNB Smart Chain (BEP-20)</div><div class="font-mono text-xs break-all bg-gray-900 rounded p-2 mb-3 select-all">${esc(w.merchant.bnb || 'not configured')}</div>
+    <div class="text-xs text-gray-400">Internet Computer (account ID)</div><div class="font-mono text-xs break-all bg-gray-900 rounded p-2 select-all">${esc(w.merchant.icp || 'not configured')}</div></div></div>
+    <div class="grid lg:grid-cols-2 gap-6 mt-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">MY PAYMENTS</h3>${w.payments.map(p => `<div class="text-xs border-b border-gray-900 py-2"><b>${esc(p.amount)} ${esc(p.chain)}</b> · ${esc(P.products[p.plan]?.name || p.plan)} · ${new Date(p.created_at * 1000).toLocaleDateString()}<br><a class="underline text-gray-500 font-mono break-all" target="_blank" rel="noopener" href="${esc(txLink(p))}">${esc(p.tx_hash.slice(0, 18))}…</a></div>`).join('') || '<div class="text-sm text-gray-500">No payments yet.</div>'}</div>
+    <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">REFERRAL EARNINGS</h3><div class="text-sm mb-2">${esc(tot)}</div>${w.referralEarnings.slice(0, 10).map(r => `<div class="text-xs text-gray-400 py-1">${esc(r.amount)} ${esc(r.asset)} · ${esc(r.status)} · ${new Date(r.created_at * 1000).toLocaleDateString()}</div>`).join('')}</div></div>`);
+  $('#wConn').onclick = async () => { await connectWallet(); viewWallet(); };
+  $('#wSave').onclick = run($('#wSave'), '…', async () => { await api('/profile', { method: 'POST', json: { payoutWallet: $('#wPayout').value } }); toast('Payout wallet saved.'); });
 }
 
 // ---- Referrals
@@ -393,13 +481,16 @@ async function viewEJobs() {
     <input id="jt" class="inp mb-2" placeholder="Job title"><input id="jtags" class="inp mb-2" placeholder="Skills/tags, comma separated (solidity, defi)">
     <div class="grid grid-cols-2 gap-2 mb-2"><input id="jloc" class="inp" placeholder="Location" value="Remote"><input id="jsal" class="inp" placeholder="Salary (optional)"></div>
     <textarea id="jd" rows="9" class="inp mb-2" placeholder="Job description"></textarea>
+    <label class="flex gap-2 text-xs text-gray-400 mb-2"><input type="checkbox" id="jFeat"> Featured listing (uses 1 Featured credit; shown first)</label>
+    <div class="text-[11px] text-gray-500 mb-3">Credits: ${ME.credits.listing} listing · ${ME.credits.featured} featured. Your first ${PRICING.freeListings} listing(s) are free; after that each listing needs a credit and lasts ${PRICING.listingDays} days. <a href="#" id="buyCredits" class="underline">Buy credits</a> · <a href="/fees" target="_blank" class="underline">Fees</a></div>
     <div class="flex gap-2"><button id="jAi" class="btn2">✨ AI write description</button><button id="jPost" class="btn">POST JOB</button></div>
     <p class="text-[11px] text-gray-600 mt-3">Applicants are screened blind: names, emails and CVs stay hidden until you shortlist. AI scores are decision support only.</p></div>
-    <div class="lg:col-span-3 space-y-3">${jobs.map(j => `<div class="card !p-4"><div class="flex justify-between gap-2"><div><div class="font-semibold text-sm">${esc(j.title)} <span class="chip">${esc(j.status)}</span></div><div class="text-xs text-gray-500">${j.applicants} applicant(s) · ${esc(j.location)}</div></div>
+    <div class="lg:col-span-3 space-y-3">${jobs.map(j => `<div class="card !p-4"><div class="flex justify-between gap-2"><div><div class="font-semibold text-sm">${esc(j.title)} <span class="chip">${esc(j.status)}</span>${j.featured ? ' <span class="chip">Featured</span>' : ''}</div><div class="text-xs text-gray-500">${j.applicants} applicant(s) · ${esc(j.location)}${j.expires_at ? ' · expires ' + new Date(j.expires_at * 1000).toLocaleDateString() : ''}</div></div>
       <div class="flex gap-2"><button class="btn2" data-view="${j.id}">Applicants</button><button class="btn2" data-close="${j.id}:${j.status === 'open' ? 'closed' : 'open'}">${j.status === 'open' ? 'Close' : 'Reopen'}</button></div></div></div>`).join('') || '<div class="text-sm text-gray-500">No jobs yet.</div>'}
     <div id="applicants"></div></div></div>`);
   $('#jAi').onclick = run($('#jAi'), 'Writing…', async () => { $('#jd').value = (await api('/employer/jobs/ai-describe', { method: 'POST', json: { title: $('#jt').value, notes: $('#jd').value } })).description; });
-  $('#jPost').onclick = run($('#jPost'), 'POSTING…', async () => { await api('/employer/jobs', { method: 'POST', json: { title: $('#jt').value, tags: $('#jtags').value, location: $('#jloc').value, salary: $('#jsal').value, description: $('#jd').value } }); toast('Job posted. Candidates with autopilot can now be matched.'); viewEJobs(); });
+  $('#jPost').onclick = run($('#jPost'), 'POSTING…', async () => { await api('/employer/jobs', { method: 'POST', json: { title: $('#jt').value, tags: $('#jtags').value, location: $('#jloc').value, salary: $('#jsal').value, description: $('#jd').value, featured: $('#jFeat').checked } }); toast('Job posted. Candidates with autopilot can now be matched.'); ME = (await api('/me')).user; viewEJobs(); });
+  $('#buyCredits').onclick = e => { e.preventDefault(); setTab('billing'); };
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = async () => { const [id, st] = b.dataset.close.split(':'); await api('/employer/jobs/' + id, { method: 'PATCH', json: { status: st } }); viewEJobs(); });
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => viewApplicants(b.dataset.view));
 }

@@ -32,7 +32,8 @@ const MIN_CONF = Number(E.BNB_MIN_CONFIRMATIONS || 3);
 const REF_PERCENT = Number(E.REFERRAL_PERCENT || 10);
 const JOB_SOURCE = E.JOB_SOURCE_URL || 'https://remoteok.com/api';
 const AP_MINUTES = Number(E.AUTOPILOT_INTERVAL_MIN || 60);
-const EMPLOYER_FREE_JOBS = Number(E.EMPLOYER_FREE_JOBS || 3);
+const EMPLOYER_FREE_JOBS = Number(E.EMPLOYER_FREE_JOBS || 1); // free job listings per employer (lifetime, beta)
+const LISTING_DAYS = 30, MAX_OPEN_JOBS = 25;
 const SMTP_URL = E.SMTP_URL || '';
 const SMTP_FROM = E.SMTP_FROM || '';
 
@@ -40,7 +41,19 @@ const PLANS = {
   base:  { name: 'Aether-Base',   bnb: E.PRICE_BASE_BNB  || '0.035', icp: E.PRICE_BASE_ICP  || '3',   dailyDrafts: 5 },
   elite: { name: 'Synapse-Elite', bnb: E.PRICE_ELITE_BNB || '0.045', icp: E.PRICE_ELITE_ICP || '4.5', dailyDrafts: 25 },
 };
+// Employer products (prices are editable in Railway Variables; defaults are a starting point, not market-tested)
+const PRODUCTS = {
+  ...PLANS,
+  listing:  { name: 'Job listing',     bnb: E.PRICE_LISTING_BNB  || '0.02', icp: E.PRICE_LISTING_ICP  || '2', kind: 'listing' },
+  featured: { name: 'Featured listing', bnb: E.PRICE_FEATURED_BNB || '0.04', icp: E.PRICE_FEATURED_ICP || '4', kind: 'featured' },
+};
 const FREE_DRAFTS_TOTAL = 2, CYCLE_DAYS = 30;
+const GOOGLE_CLIENT_ID = E.GOOGLE_CLIENT_ID || '';
+const GOOGLE_TOKENINFO = E.GOOGLE_TOKENINFO_URL || 'https://oauth2.googleapis.com/tokeninfo';
+const CONTACT_EMAIL = E.CONTACT_EMAIL || '';
+const { verifyMessage, isAddress } = require('ethers');
+const nodeCrypto = require('crypto');
+const legal = require('./legal');
 
 // ---------- DB ----------
 const DATA_DIR = E.DATA_DIR || path.join(__dirname, 'data');
@@ -83,6 +96,20 @@ addCol('users', 'company_name', "TEXT DEFAULT ''");
 addCol('users', 'company_desc', "TEXT DEFAULT ''");
 addCol('users', 'autopilot_json', "TEXT DEFAULT ''");
 addCol('users', 'ats_json', "TEXT DEFAULT ''");
+addCol('users', 'display_name', "TEXT DEFAULT ''");
+addCol('users', 'headline', "TEXT DEFAULT ''");
+addCol('users', 'location', "TEXT DEFAULT ''");
+addCol('users', 'bio', "TEXT DEFAULT ''");
+addCol('users', 'contact_email', "TEXT DEFAULT ''");
+addCol('users', 'listing_credits', 'INTEGER DEFAULT 0');
+addCol('users', 'featured_credits', 'INTEGER DEFAULT 0');
+addCol('posted_jobs', 'featured', 'INTEGER DEFAULT 0');
+addCol('posted_jobs', 'expires_at', 'INTEGER DEFAULT 0');
+db.exec(`
+CREATE TABLE IF NOT EXISTS identities(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, provider TEXT NOT NULL,
+  subject TEXT NOT NULL, label TEXT DEFAULT '', created_at INTEGER NOT NULL, UNIQUE(provider, subject));
+`);
 
 // ---------- helpers ----------
 const now = () => Math.floor(Date.now() / 1000);
@@ -120,10 +147,16 @@ const wrap = fn => (req, res) => Promise.resolve(fn(req, res)).catch(e => {
 });
 
 const activePlan = u => (u.plan !== 'free' && u.plan_expires > now()) ? u.plan : 'free';
+const isPlaceholderEmail = e => /@(wallet|social)\.invalid$/.test(e || '');
+const contactOf = u => u.contact_email || (isPlaceholderEmail(u.email) ? '' : u.email);
 function publicUser(u) {
   const p = activePlan(u);
+  const ids = db.prepare('SELECT id, provider, subject, label, created_at FROM identities WHERE user_id=?').all(u.id);
   return {
-    id: u.id, email: u.email, role: u.role, companyName: u.company_name, companyDesc: u.company_desc,
+    displayName: u.display_name, headline: u.headline, location: u.location, bio: u.bio, contactEmail: u.contact_email,
+    hasPassword: u.pass_hash !== '!', realEmail: !isPlaceholderEmail(u.email), identities: ids,
+    credits: { listing: u.listing_credits || 0, featured: u.featured_credits || 0 },
+    id: u.id, email: isPlaceholderEmail(u.email) ? '' : u.email, role: u.role, companyName: u.company_name, companyDesc: u.company_desc,
     refCode: u.ref_code, payoutWallet: u.payout_wallet, plan: p, planExpires: p === 'free' ? 0 : u.plan_expires,
     hasCv: !!u.cv_text, profile: jparse(u.profile_json, null), ats: jparse(u.ats_json, null),
     autopilot: getAP(u), isAdmin: !!ADMIN_EMAIL && u.email === ADMIN_EMAIL,
@@ -143,32 +176,45 @@ const adminOnly = (req, res, next) => (!ADMIN_EMAIL || req.user.email !== ADMIN_
 // ---------- auth ----------
 app.post('/api/signup', rateLimit(10, 600), wrap(async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase(), password = String(req.body.password || '');
-  const role = req.body.role === 'employer' ? 'employer' : 'candidate';
-  const company = String(req.body.companyName || '').trim().slice(0, 80);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw fail(400, 'Enter a valid email.');
   if (password.length < 8) throw fail(400, 'Password must be at least 8 characters.');
-  if (role === 'employer' && !company) throw fail(400, 'Enter your company name.');
+  if (isPlaceholderEmail(email)) throw fail(400, 'Enter a valid email.');
+  if (!consentOk(req.body)) throw fail(400, 'Please accept the Terms and Privacy Policy to create an account.');
   if (db.prepare('SELECT 1 FROM users WHERE email=?').get(email)) throw fail(409, 'Email already registered.');
-  const ref = String(req.body.ref || '').trim();
-  const referrer = ref ? db.prepare('SELECT id FROM users WHERE ref_code=?').get(ref) : null;
-  const info = db.prepare('INSERT INTO users(email,pass_hash,ref_code,referred_by,role,company_name,created_at) VALUES(?,?,?,?,?,?,?)')
-    .run(email, bcrypt.hashSync(password, 10),
-      (ADMIN_EMAIL && email === ADMIN_EMAIL) ? (E.OFFICIAL_REF_CODE || 'akmal') : Math.random().toString(36).slice(2, 10),
-      referrer ? referrer.id : null, role, company, now());
-  const u = userById(info.lastInsertRowid);
+  const u = createUser({ email, passHash: bcrypt.hashSync(password, 10), role: req.body.role, company: req.body.companyName, ref: req.body.ref });
   res.json({ token: signToken(u), user: publicUser(u) });
 }));
+// Shared account creation (email, Google and wallet sign-up all go through here)
+function createUser({ email, passHash, role, company, ref, displayName = '' }) {
+  role = role === 'employer' ? 'employer' : 'candidate';
+  company = String(company || '').trim().slice(0, 80);
+  if (role === 'employer' && !company) throw fail(400, 'Enter your company name.');
+  ref = String(ref || '').trim();
+  const referrer = ref ? db.prepare('SELECT id FROM users WHERE ref_code=?').get(ref) : null;
+  const isAdmin = !!ADMIN_EMAIL && email === ADMIN_EMAIL;
+  let code = isAdmin ? (E.OFFICIAL_REF_CODE || 'akmal') : Math.random().toString(36).slice(2, 10);
+  if (!isAdmin) while (db.prepare('SELECT 1 FROM users WHERE ref_code=?').get(code)) code = Math.random().toString(36).slice(2, 10);
+  const info = db.prepare('INSERT INTO users(email,pass_hash,ref_code,referred_by,role,company_name,display_name,created_at) VALUES(?,?,?,?,?,?,?,?)')
+    .run(email, passHash, code, referrer ? referrer.id : null, role, company, String(displayName).slice(0, 80), now());
+  return userById(info.lastInsertRowid);
+}
 app.post('/api/login', rateLimit(15, 600), wrap(async (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE email=?').get(String(req.body.email || '').trim().toLowerCase());
   if (!u || !bcrypt.compareSync(String(req.body.password || ''), u.pass_hash)) throw fail(401, 'Wrong email or password.');
   res.json({ token: signToken(u), user: publicUser(u) });
 }));
 app.get('/api/me', auth, (req, res) => res.json({ user: publicUser(req.user) }));
-app.post('/api/profile', auth, (req, res) => {
-  db.prepare('UPDATE users SET payout_wallet=?, company_desc=COALESCE(?,company_desc) WHERE id=?')
-    .run(String(req.body.payoutWallet || '').trim().slice(0, 100), req.body.companyDesc != null ? String(req.body.companyDesc).slice(0, 1000) : null, req.user.id);
-  res.json({ ok: true });
-});
+const validPayout = w => !w || isAddress(w) || /^[0-9a-fA-F]{64}$/.test(w) || /^[a-z0-9]{5}(-[a-z0-9]{5}){2,}(-[a-z0-9]{1,5})?$/.test(w);
+app.post('/api/profile', auth, wrap(async (req, res) => {
+  const b = req.body, u = req.user, t = (v, n, cur) => v == null ? cur : String(v).trim().slice(0, n);
+  const payout = b.payoutWallet == null ? u.payout_wallet : String(b.payoutWallet).trim().slice(0, 100);
+  if (!validPayout(payout)) throw fail(400, 'Payout wallet must be a BNB address (0x...), an ICP account ID (64 hex characters) or an ICP principal.');
+  const ce = b.contactEmail == null ? u.contact_email : String(b.contactEmail).trim().toLowerCase().slice(0, 120);
+  if (ce && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ce)) throw fail(400, 'Enter a valid contact email.');
+  db.prepare('UPDATE users SET payout_wallet=?, company_desc=?, display_name=?, headline=?, location=?, bio=?, contact_email=? WHERE id=?')
+    .run(payout, t(b.companyDesc, 1000, u.company_desc), t(b.displayName, 80, u.display_name), t(b.headline, 120, u.headline), t(b.location, 80, u.location), t(b.bio, 600, u.bio), ce, u.id);
+  res.json({ ok: true, user: publicUser(userById(u.id)) });
+}));
 app.delete('/api/account', auth, wrap(async (req, res) => {
   if (req.body.confirm !== 'DELETE') throw fail(400, 'Send {"confirm":"DELETE"}.');
   const id = req.user.id;
@@ -183,6 +229,107 @@ app.delete('/api/account', auth, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 app.get('/api/audit', auth, (req, res) => res.json({ log: db.prepare('SELECT action, detail, created_at FROM audit_log WHERE user_id=? ORDER BY id DESC LIMIT 60').all(req.user.id) }));
+
+
+// ---------- Google + wallet sign-in, linked identities ----------
+const nonces = new Map(); // address -> { nonce, exp }
+setInterval(() => { const t = now(); for (const [k, v] of nonces) if (v.exp < t) nonces.delete(k); }, 300000).unref();
+const consentOk = b => b && b.agree === true;
+
+async function googleClaims(credential) {
+  if (!GOOGLE_CLIENT_ID) throw fail(501, 'Google sign-in is not configured on this server.');
+  if (typeof credential !== 'string' || credential.length < 20 || credential.length > 4000) throw fail(400, 'Missing Google credential.');
+  let j; try { const r = await fetch(GOOGLE_TOKENINFO + '?id_token=' + encodeURIComponent(credential)); if (!r.ok) throw 0; j = await r.json(); } catch { throw fail(401, 'Google could not verify that sign-in.'); }
+  const okIss = ['accounts.google.com', 'https://accounts.google.com'].includes(j.iss);
+  if (j.aud !== GOOGLE_CLIENT_ID || !okIss || !(Number(j.exp) > now()) || String(j.email_verified) !== 'true' || !j.sub || !j.email) throw fail(401, 'Google sign-in could not be verified.');
+  return { sub: String(j.sub), email: String(j.email).toLowerCase(), name: String(j.name || '').slice(0, 80) };
+}
+function walletChallenge(address) {
+  if (!isAddress(address)) throw fail(400, 'Enter a valid EVM wallet address.');
+  const a = address.toLowerCase(), nonce = nodeCrypto.randomBytes(16).toString('hex'), exp = now() + 300;
+  nonces.set(a, { nonce, exp });
+  return { address: a, nonce, message: `Sign in to CareerPilot AI\nThis signature proves you control this wallet. It costs nothing and moves no funds.\nAddress: ${a}\nNonce: ${nonce}` };
+}
+function walletProof(address, signature) {
+  if (!isAddress(address)) throw fail(400, 'Invalid wallet address.');
+  const a = address.toLowerCase(), n = nonces.get(a);
+  if (!n || n.exp < now()) throw fail(400, 'Sign-in request expired. Try again.');
+  nonces.delete(a); // one-time
+  const msg = `Sign in to CareerPilot AI\nThis signature proves you control this wallet. It costs nothing and moves no funds.\nAddress: ${a}\nNonce: ${n.nonce}`;
+  let rec; try { rec = verifyMessage(msg, String(signature || '')).toLowerCase(); } catch { throw fail(401, 'Invalid signature.'); }
+  if (rec !== a) throw fail(401, 'Signature does not match that wallet.');
+  return a;
+}
+const identityRow = (provider, subject) => db.prepare('SELECT * FROM identities WHERE provider=? AND subject=?').get(provider, subject);
+const addIdentity = (uid, provider, subject, label) => db.prepare('INSERT INTO identities(user_id,provider,subject,label,created_at) VALUES(?,?,?,?,?)').run(uid, provider, subject, String(label || '').slice(0, 120), now());
+function signInOrUp(provider, subject, label, { email, displayName }, body) {
+  const idr = identityRow(provider, subject);
+  if (idr) { const u = userById(idr.user_id); if (u) { audit(u.id, 'login', provider); return { token: signToken(u), user: publicUser(u), created: false }; } }
+  // A verified Google email may attach to an existing account with the same email.
+  if (provider === 'google') {
+    const ex = db.prepare('SELECT * FROM users WHERE email=?').get(email);
+    if (ex) { addIdentity(ex.id, provider, subject, label); audit(ex.id, 'identity_linked', provider); return { token: signToken(ex), user: publicUser(userById(ex.id)), created: false }; }
+  }
+  if (!consentOk(body)) throw fail(400, 'Please accept the Terms and Privacy Policy to create an account.');
+  const u = createUser({ email, passHash: '!', role: body.role, company: body.companyName, ref: body.ref, displayName });
+  addIdentity(u.id, provider, subject, label); audit(u.id, 'signup', provider);
+  return { token: signToken(u), user: publicUser(u), created: true };
+}
+app.get('/api/auth/config', (req, res) => res.json({ google: GOOGLE_CLIENT_ID || null, wallet: true, internetIdentity: false }));
+app.post('/api/auth/google', rateLimit(20, 600), wrap(async (req, res) => {
+  const c = await googleClaims(req.body.credential);
+  res.json(signInOrUp('google', c.sub, c.email, { email: c.email, displayName: c.name }, req.body));
+}));
+app.post('/api/auth/wallet/nonce', rateLimit(30, 600), wrap(async (req, res) => { res.json(walletChallenge(String(req.body.address || ''))); }));
+app.post('/api/auth/wallet', rateLimit(20, 600), wrap(async (req, res) => {
+  const a = walletProof(String(req.body.address || ''), req.body.signature);
+  res.json(signInOrUp('evm', a, a, { email: a + '@wallet.invalid', displayName: a.slice(0, 6) + '...' + a.slice(-4) }, req.body));
+}));
+// link another sign-in method to the logged-in account
+app.post('/api/identities/google', auth, rateLimit(20, 600), wrap(async (req, res) => {
+  const c = await googleClaims(req.body.credential), ex = identityRow('google', c.sub);
+  if (ex && ex.user_id !== req.user.id) throw fail(409, 'That Google account is already linked to another CareerPilot account.');
+  if (!ex) { addIdentity(req.user.id, 'google', c.sub, c.email); audit(req.user.id, 'identity_linked', 'google'); }
+  res.json({ user: publicUser(userById(req.user.id)) });
+}));
+app.post('/api/identities/wallet', auth, rateLimit(20, 600), wrap(async (req, res) => {
+  const a = walletProof(String(req.body.address || ''), req.body.signature), ex = identityRow('evm', a);
+  if (ex && ex.user_id !== req.user.id) throw fail(409, 'That wallet is already linked to another CareerPilot account.');
+  if (!ex) { addIdentity(req.user.id, 'evm', a, a); audit(req.user.id, 'identity_linked', 'wallet'); }
+  res.json({ user: publicUser(userById(req.user.id)) });
+}));
+app.delete('/api/identities/:id', auth, wrap(async (req, res) => {
+  const ids = db.prepare('SELECT * FROM identities WHERE user_id=?').all(req.user.id), target = ids.find(i => String(i.id) === req.params.id);
+  if (!target) throw fail(404, 'Not found.');
+  if (req.user.pass_hash === '!' && ids.length < 2) throw fail(400, 'Keep at least one way to sign in. Add another method or set a password first.');
+  db.prepare('DELETE FROM identities WHERE id=?').run(target.id); audit(req.user.id, 'identity_unlinked', target.provider);
+  res.json({ user: publicUser(userById(req.user.id)) });
+}));
+// set a password (for accounts created with Google or a wallet), and attach a real email to wallet accounts
+app.post('/api/auth/set-password', auth, wrap(async (req, res) => {
+  const pw = String(req.body.password || ''), u = req.user;
+  if (pw.length < 8) throw fail(400, 'Password must be at least 8 characters.');
+  if (u.pass_hash !== '!' && !bcrypt.compareSync(String(req.body.current || ''), u.pass_hash)) throw fail(401, 'Current password is wrong.');
+  db.prepare('UPDATE users SET pass_hash=? WHERE id=?').run(bcrypt.hashSync(pw, 10), u.id); audit(u.id, 'password_set');
+  res.json({ ok: true });
+}));
+
+// ---------- wallet section ----------
+app.get('/api/wallet', auth, (req, res) => {
+  const u = userById(req.user.id);
+  res.json({
+    identities: db.prepare('SELECT id, provider, subject, label, created_at FROM identities WHERE user_id=?').all(u.id),
+    payoutWallet: u.payout_wallet, credits: { listing: u.listing_credits || 0, featured: u.featured_credits || 0 },
+    plan: activePlan(u), planExpires: activePlan(u) === 'free' ? 0 : u.plan_expires,
+    payments: db.prepare('SELECT chain, tx_hash, plan, amount, created_at FROM payments WHERE user_id=? ORDER BY id DESC LIMIT 50').all(u.id),
+    referralEarnings: db.prepare('SELECT amount, asset, status, created_at FROM referral_earnings WHERE referrer_id=? ORDER BY id DESC LIMIT 50').all(u.id),
+    merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
+  });
+});
+
+// ---------- legal pages ----------
+const legalCfg = () => ({ products: PRODUCTS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP }, refPercent: REF_PERCENT, freeListings: EMPLOYER_FREE_JOBS, freeDrafts: FREE_DRAFTS_TOTAL, cycleDays: CYCLE_DAYS, listingDays: LISTING_DAYS, contactEmail: CONTACT_EMAIL });
+['privacy', 'terms', 'fees'].forEach(p => app.get('/' + p, (req, res) => res.type('html').send(legal[p](legalCfg()))));
 
 // ---------- AI ----------
 async function aiRaw(body) {
@@ -271,9 +418,9 @@ async function loadExternal() {
   return ext.jobs;
 }
 function nativeJobs() {
-  return db.prepare("SELECT p.*, u.company_name FROM posted_jobs p JOIN users u ON u.id=p.employer_id WHERE p.status='open' ORDER BY p.id DESC").all().map(p => ({
+  return db.prepare("SELECT p.*, u.company_name FROM posted_jobs p JOIN users u ON u.id=p.employer_id WHERE p.status='open' AND (p.expires_at=0 OR p.expires_at>?) ORDER BY p.featured DESC, p.id DESC").all(now()).map(p => ({
     id: 'cp-' + p.id, title: p.title, company: p.company_name, tags: jparse(p.tags, []), location: p.location, description: p.description,
-    url: '', salary: p.salary, date: new Date(p.created_at * 1000).toISOString(), source: 'CareerPilot', native: true, salaryMin: 0, salaryMax: 0 }));
+    url: '', featured: !!p.featured, salary: p.salary, date: new Date(p.created_at * 1000).toISOString(), source: 'CareerPilot', native: true, salaryMin: 0, salaryMax: 0 }));
 }
 const isCrypto = j => { const h = (j.title + ' ' + j.tags.join(' ') + ' ' + j.description).toLowerCase(); return CRYPTO_TAGS.some(t => h.includes(t)); };
 async function allJobs() { return [...nativeJobs(), ...(await loadExternal())]; }
@@ -361,7 +508,7 @@ async function submitApplication(u, appId, via) {
   const a = db.prepare('SELECT * FROM applications WHERE id=? AND user_id=?').get(appId, u.id);
   if (!a || !a.job_id.startsWith('cp-')) throw fail(400, 'Only direct CareerPilot postings can be submitted in-platform.');
   if (a.status === 'applied') throw fail(409, 'Already submitted.');
-  const jobId = Number(a.job_id.slice(3)), pj = db.prepare("SELECT * FROM posted_jobs WHERE id=? AND status='open'").get(jobId);
+  const jobId = Number(a.job_id.slice(3)), pj = db.prepare("SELECT * FROM posted_jobs WHERE id=? AND status='open' AND (expires_at=0 OR expires_at>?)").get(jobId, now());
   if (!pj) throw fail(404, 'This job is closed.');
   const job = nativeJobs().find(j => j.id === a.job_id);
   const s = await screen(job, u.cv_text, jparse(u.profile_json, {}));
@@ -447,11 +594,19 @@ app.post('/api/employer/jobs/ai-describe', auth, employer, rateLimit(15, 600), w
 app.post('/api/employer/jobs', auth, employer, wrap(async (req, res) => {
   const title = String(req.body.title || '').trim().slice(0, 100), description = String(req.body.description || '').trim().slice(0, 6000);
   if (!title || description.length < 40) throw fail(400, 'Add a title and a description (40+ characters).');
-  if (db.prepare("SELECT COUNT(*) c FROM posted_jobs WHERE employer_id=? AND status='open'").get(req.user.id).c >= EMPLOYER_FREE_JOBS) throw fail(402, `Open-job limit (${EMPLOYER_FREE_JOBS}) reached. Close one first.`);
+  if (db.prepare("SELECT COUNT(*) c FROM posted_jobs WHERE employer_id=? AND status='open'").get(req.user.id).c >= MAX_OPEN_JOBS) throw fail(400, `You can have up to ${MAX_OPEN_JOBS} open jobs. Close one first.`);
+  const featured = req.body.featured ? 1 : 0, u = userById(req.user.id);
+  const everPosted = db.prepare('SELECT COUNT(*) c FROM posted_jobs WHERE employer_id=?').get(u.id).c;
+  let credit = null;
+  if (featured) { if (!(u.featured_credits > 0)) throw fail(402, 'A Featured listing needs a Featured credit. Buy one in Billing (see Fees).'); credit = 'featured_credits'; }
+  else if (everPosted >= EMPLOYER_FREE_JOBS) { if (!(u.listing_credits > 0)) throw fail(402, 'Your free listing is used. Buy a listing credit in Billing (see Fees).'); credit = 'listing_credits'; }
   const tags = String(req.body.tags || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 10);
-  const info = db.prepare('INSERT INTO posted_jobs(employer_id,title,description,tags,location,salary,created_at) VALUES(?,?,?,?,?,?,?)')
-    .run(req.user.id, title, description, JSON.stringify(tags), String(req.body.location || 'Remote').slice(0, 60), String(req.body.salary || '').slice(0, 60), now());
-  audit(req.user.id, 'job_posted', title);
+  const info = db.transaction(() => {
+    if (credit) db.prepare(`UPDATE users SET ${credit}=${credit}-1 WHERE id=?`).run(u.id);
+    return db.prepare('INSERT INTO posted_jobs(employer_id,title,description,tags,location,salary,created_at,featured,expires_at) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(req.user.id, title, description, JSON.stringify(tags), String(req.body.location || 'Remote').slice(0, 60), String(req.body.salary || '').slice(0, 60), now(), featured, now() + LISTING_DAYS * 86400);
+  })();
+  audit(req.user.id, 'job_posted', title + (featured ? ' (featured)' : credit ? ' (credit)' : ' (free)'));
   res.json({ id: info.lastInsertRowid });
 }));
 app.get('/api/employer/jobs', auth, employer, (req, res) => res.json({ jobs: db.prepare(`SELECT p.*, (SELECT COUNT(*) FROM inbound_applications i WHERE i.job_id=p.id) AS applicants FROM posted_jobs p WHERE employer_id=? ORDER BY id DESC`).all(req.user.id) }));
@@ -581,7 +736,7 @@ app.post('/api/agent', auth, rateLimit(30, 600), wrap(async (req, res) => {
 }));
 
 // ---------- payments ----------
-app.get('/api/pricing', (req, res) => res.json({ plans: PLANS, cycleDays: CYCLE_DAYS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
+app.get('/api/pricing', (req, res) => res.json({ plans: PLANS, products: PRODUCTS, freeListings: EMPLOYER_FREE_JOBS, listingDays: LISTING_DAYS, cycleDays: CYCLE_DAYS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
   configured: { bnb: !!MERCHANT_BNB, icp: !!MERCHANT_ICP, ai: !!AI_KEY, email: !!(SMTP_URL && nodemailer) }, referralPercent: REF_PERCENT, employerFreeJobs: EMPLOYER_FREE_JOBS }));
 const toUnits = (s, d) => { const [a, b = ''] = String(s).split('.'); return BigInt(a) * 10n ** BigInt(d) + BigInt((b + '0'.repeat(d)).slice(0, d)); };
 async function rpc(method, params) {
@@ -589,6 +744,7 @@ async function rpc(method, params) {
   if (j.error) throw new Error(j.error.message); return j.result;
 }
 async function verifyBnb(h, plan) {
+  const PLANS = PRODUCTS; // plans and employer products share verification
   if (!MERCHANT_BNB) throw new Error('BNB payments are not configured on this server.');
   if (!/^0x[0-9a-fA-F]{64}$/.test(h)) throw new Error('Invalid BNB transaction hash.');
   const tx = await rpc('eth_getTransactionByHash', [h]);
@@ -602,6 +758,7 @@ async function verifyBnb(h, plan) {
   return { amount: PLANS[plan].bnb, asset: 'BNB' };
 }
 async function verifyIcp(h, plan) {
+  const PLANS = PRODUCTS;
   if (!MERCHANT_ICP) throw new Error('ICP payments are not configured on this server.');
   if (!/^[0-9a-fA-F]{64}$/.test(h)) throw new Error('Invalid ICP transaction hash (64 hex characters).');
   const r = await fetch(ICP_ROSETTA + '/search/transactions', { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -615,18 +772,20 @@ async function verifyIcp(h, plan) {
 }
 app.post('/api/payments/verify', auth, rateLimit(15, 600), wrap(async (req, res) => {
   const chain = String(req.body.chain || '').toUpperCase(), plan = String(req.body.plan || ''), hash = String(req.body.txHash || '').trim();
-  if (!PLANS[plan]) throw fail(400, 'Unknown plan.'); if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Unknown chain.');
+  if (!PRODUCTS[plan]) throw fail(400, 'Unknown product.'); if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Unknown chain.');
   const key = hash.toLowerCase();
   if (db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(key)) throw fail(409, 'That transaction was already used.');
   let v; try { v = chain === 'BNB' ? await verifyBnb(hash, plan) : await verifyIcp(hash, plan); } catch (e) { throw fail(400, e.message); }
   const u = req.user, base = Math.max(now(), activePlan(u) !== 'free' ? u.plan_expires : 0), expires = base + CYCLE_DAYS * 86400;
   db.transaction(() => {
     const p = db.prepare('INSERT INTO payments(user_id,chain,tx_hash,plan,amount,created_at) VALUES(?,?,?,?,?,?)').run(u.id, chain, key, plan, v.amount, now());
-    db.prepare('UPDATE users SET plan=?, plan_expires=? WHERE id=?').run(plan, expires, u.id);
+    if (PRODUCTS[plan].kind === 'listing') db.prepare('UPDATE users SET listing_credits=listing_credits+1 WHERE id=?').run(u.id);
+    else if (PRODUCTS[plan].kind === 'featured') db.prepare('UPDATE users SET featured_credits=featured_credits+1 WHERE id=?').run(u.id);
+    else db.prepare('UPDATE users SET plan=?, plan_expires=? WHERE id=?').run(plan, expires, u.id);
     if (u.referred_by) db.prepare('INSERT INTO referral_earnings(referrer_id,referred_id,payment_id,amount,asset,created_at) VALUES(?,?,?,?,?,?)').run(u.referred_by, u.id, p.lastInsertRowid, (Number(v.amount) * REF_PERCENT / 100).toFixed(chain === 'BNB' ? 6 : 4), v.asset, now());
   })();
-  audit(u.id, 'plan_activated', plan);
-  res.json({ ok: true, plan, expires });
+  audit(u.id, PRODUCTS[plan].kind ? 'credit_added' : 'plan_activated', plan);
+  res.json({ ok: true, plan, expires, credits: { listing: userById(u.id).listing_credits, featured: userById(u.id).featured_credits } });
 }));
 
 // ---------- referrals + admin ----------
