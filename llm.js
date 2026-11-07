@@ -8,7 +8,7 @@ function toOpenAI(body, model) {
     const blocks = Array.isArray(m.content) ? m.content : [];
     if (m.role === 'assistant') {
       const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
-      const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input || {}) } }));
+      const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input || {}) }, ...(b.extra_content ? { extra_content: b.extra_content } : {}) })); // Gemini 3 needs its thought_signature echoed back
       msgs.push({ role: 'assistant', content: text || null, ...(calls.length ? { tool_calls: calls } : {}) });
     } else {
       for (const b of blocks) if (b.type === 'tool_result') msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content: typeof b.content === 'string' ? b.content : JSON.stringify(b.content) });
@@ -28,7 +28,7 @@ function fromOpenAI(j) {
   if (msg.content) content.push({ type: 'text', text: String(msg.content) });
   for (const c of msg.tool_calls || []) {
     let input = {}; try { input = JSON.parse((c.function && c.function.arguments) || '{}'); } catch {}
-    content.push({ type: 'tool_use', id: c.id || ('call_' + Math.random().toString(36).slice(2, 10)), name: c.function && c.function.name, input });
+    content.push({ type: 'tool_use', id: c.id || ('call_' + Math.random().toString(36).slice(2, 10)), name: c.function && c.function.name, input, ...(c.extra_content ? { extra_content: c.extra_content } : {}) });
   }
   return { content, stop_reason: (msg.tool_calls || []).length ? 'tool_use' : 'end_turn' };
 }
