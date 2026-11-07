@@ -499,35 +499,6 @@ app.get('/api/jobs', auth, wrap(async (req, res) => {
 }));
 app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, res) => {
   const jobs = (await allJobs()).filter(j => j.native || isCrypto(j));
-  const skillRules = [
-    ['Solidity', /\\bsolidity\\b/i], ['Rust', /\\brust\\b/i], ['Smart contracts', /smart contract/i],
-    ['DeFi', /\\bdefi\\b|decentralized finance/i], ['Trading', /trading|market making|quant/i],
-    ['Security / audits', /security|audit|penetration test/i], ['Blockchain engineering', /blockchain|protocol engineer/i],
-    ['Go', /\\bgolang\\b|\\bgo language\\b/i], ['TypeScript', /typescript/i], ['Python', /\\bpython\\b/i],
-    ['Zero knowledge', /zero.?knowledge|\\bzk\\b/i], ['Infrastructure / DevOps', /devops|kubernetes|infrastructure/i],
-    ['Data / analytics', /analytics|data engineer|sql|dune/i], ['Product', /product manager|product lead/i],
-    ['Partnerships', /partnerships|ecosystem/i], ['Compliance / risk', /compliance|aml|risk/i]
-  ];
-  const textOf = j => [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ');
-  const topSkills = skillRules.map(([skill, re]) => ({ skill, count: jobs.filter(j => re.test(textOf(j))).length }))
-    .filter(x => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 8);
-  const dates = jobs.map(j => Date.parse(j.date || '')).filter(Number.isFinite);
-  res.json({
-    generatedAt: new Date().toISOString(), sampleSize: jobs.length,
-    companies: new Set(jobs.map(j => String(j.company || '').trim().toLowerCase()).filter(Boolean)).size,
-    directListings: jobs.filter(j => j.native).length, remoteListings: jobs.filter(isRemote).length,
-    explicitlySponsoredListings: jobs.filter(hasVisaSponsorship).length,
-    postedLast24Hours: dates.filter(t => t >= Date.now() - 86400000).length,
-    topSkills, feed: { provider: 'RemoteOK + CareerPilot direct listings',
-      lastSuccessfulFetch: ext.at ? new Date(ext.at).toISOString() : null,
-      freshnessMinutes: ext.at ? Math.max(0, Math.round((Date.now() - ext.at) / 60000)) : null,
-      cachedFallbackAvailable: !!ext.jobs.length },
-    confidence: jobs.length >= 30 ? 'broader sample' : jobs.length >= 10 ? 'limited sample' : 'small sample',
-    methodology: 'Computed from currently available listing text. Skill mentions are not growth rates; sponsorship is counted only when explicitly stated.'
-  });
-}));
-app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, res) => {
-  const jobs = (await allJobs()).filter(j => j.native || isCrypto(j));
   const rules = [['Solidity', /\bsolidity\b/i], ['Rust', /\brust\b/i], ['Smart contracts', /smart contract/i], ['DeFi', /\bdefi\b|decentralized finance/i], ['Trading', /trading|market making|quant/i], ['Security', /security|audit/i], ['Blockchain engineering', /blockchain|protocol engineer/i], ['Python', /\bpython\b/i], ['TypeScript', /typescript/i], ['Zero knowledge', /zero.?knowledge|\bzk\b/i], ['DevOps', /devops|kubernetes/i], ['Data analytics', /analytics|data engineer|dune/i]];
   const hay = j => [j.title,j.company,j.location,...(j.tags||[]),j.description].join(' ');
   const topSkills = rules.map(([skill,re])=>({skill,count:jobs.filter(j=>re.test(hay(j))).length})).filter(x=>x.count).sort((a,b)=>b.count-a.count).slice(0,8);
