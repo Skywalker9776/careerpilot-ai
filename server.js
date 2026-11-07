@@ -438,21 +438,31 @@ app.post('/api/cv/analyze', auth, candidate, rateLimit(10, 600), wrap(async (req
 }));
 
 // ---------- jobs ----------
-let ext = { at: 0, jobs: [] };
+let ext = { at: 0, lastAttempt: 0, jobs: [] };
 const CRYPTO_TAGS = ['crypto','web3','blockchain','solidity','defi','nft','dao','ethereum','bitcoin','smart contract','rust','token'];
 const strip = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ').trim();
 async function loadExternal() {
-  if (ext.jobs.length && Date.now() - ext.at < 30 * 60 * 1000) return ext.jobs;
+  const started = Date.now();
+  if (ext.at && started - ext.at < 30 * 60 * 1000) return ext.jobs;
+  // Back off briefly after provider failures instead of retrying on every candidate request.
+  if (ext.lastAttempt && started - ext.lastAttempt < 5 * 60 * 1000) return ext.jobs;
+  ext.lastAttempt = started;
   try {
-    const r = await fetch(JOB_SOURCE, { headers: { 'user-agent': 'CareerPilotAI/2.0' } });
+    const r = await fetch(JOB_SOURCE, {
+      headers: { 'user-agent': 'CareerPilotAI/2.0' },
+      signal: AbortSignal.timeout(12000)
+    });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    ext = { at: Date.now(), jobs: (await r.json()).filter(j => j && j.id && (j.position || j.title)).map(j => ({
-      id: 'ro-' + j.id, title: j.position || j.title, company: j.company || '', tags: (j.tags || []).map(String),
+    const payload = await r.json();
+    if (!Array.isArray(payload)) throw new Error('Unexpected job-feed response');
+    const jobs = payload.filter(j => j && j.id && (j.position || j.title)).map(j => ({
+      id: 'ro-' + j.id, title: j.position || j.title, company: j.company || '', tags: Array.isArray(j.tags) ? j.tags.map(String) : [],
       location: j.location || 'Remote', description: strip(j.description).slice(0, 3000), url: j.url || j.apply_url || '',
       salaryMin: Number(j.salary_min) || 0, salaryMax: Number(j.salary_max) || 0,
-      salary: j.salary_min ? `$${j.salary_min}–$${j.salary_max}` : '', date: j.date || '', source: 'RemoteOK', native: false })) };
+      salary: j.salary_min ? `$${j.salary_min}–$${j.salary_max}` : '', date: j.date || '', source: 'RemoteOK', native: false }));
+    ext = { at: started, lastAttempt: started, jobs };
   } catch (e) { console.error('Job fetch failed:', e.message); }
-  return ext.jobs;
+  return ext.jobs; // keep the last known good feed if the provider is temporarily unavailable
 }
 function nativeJobs() {
   return db.prepare("SELECT p.*, u.company_name FROM posted_jobs p JOIN users u ON u.id=p.employer_id WHERE p.status='open' AND (p.expires_at=0 OR p.expires_at>?) ORDER BY p.featured DESC, p.id DESC").all(now()).map(p => ({
@@ -460,22 +470,49 @@ function nativeJobs() {
     url: '', featured: !!p.featured, salary: p.salary, date: new Date(p.created_at * 1000).toISOString(), source: 'CareerPilot', native: true, salaryMin: 0, salaryMax: 0 }));
 }
 const isCrypto = j => { const h = (j.title + ' ' + j.tags.join(' ') + ' ' + j.description).toLowerCase(); return CRYPTO_TAGS.some(t => h.includes(t)); };
+const isRemote = j => /\b(remote|worldwide|anywhere|work from home|distributed)\b/i.test(String(j.location || '') + ' ' + (j.tags || []).join(' '));
+const hasVisaSponsorship = j => /\b(visa sponsorship|sponsor(?:ed|sorship)?\s+(?:a\s+)?visa|visa\s+support|work permit sponsorship|relocation\s+(?:and\s+)?visa)\b/i.test(String(j.title || '') + ' ' + String(j.description || ''));
+const searchMatch = (j, q, location, remoteOnly, visaOnly) => {
+  const hay = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
+  const terms = q.split(/\s+/).filter(Boolean);
+  return terms.every(term => hay.includes(term)) &&
+    (!location || String(j.location || '').toLowerCase().includes(location)) &&
+    (!remoteOnly || isRemote(j)) && (!visaOnly || hasVisaSponsorship(j));
+};
 async function allJobs() { return [...nativeJobs(), ...(await loadExternal())]; }
 async function findJob(id) { return (await allJobs()).find(j => j.id === id); }
-const short = j => ({ ...j, description: j.description.slice(0, 400) });
+const short = j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j), description: j.description.slice(0, 400) });
 
 app.get('/api/jobs', auth, wrap(async (req, res) => {
-  const q = String(req.query.q || '').toLowerCase().trim();
-  const nat = nativeJobs(), all = await loadExternal();
-  const ex = q ? all.filter(j => (j.title + ' ' + j.company + ' ' + j.tags.join(' ')).toLowerCase().includes(q)) : all.filter(isCrypto);
-  const nq = q ? nat.filter(j => (j.title + ' ' + j.company + ' ' + j.tags.join(' ')).toLowerCase().includes(q)) : nat;
-  res.json({ jobs: [...nq, ...ex].slice(0, 60).map(short), total: nq.length + ex.length, source: 'CareerPilot direct postings + RemoteOK (remoteok.com); external links go to the original listing' });
+  const q = String(req.query.q || '').toLowerCase().trim().slice(0, 120);
+  const location = String(req.query.location || '').toLowerCase().trim().slice(0, 80);
+  const remoteOnly = req.query.remote === '1';
+  const visaOnly = req.query.visa === '1';
+  const matches = j => searchMatch(j, q, location, remoteOnly, visaOnly);
+  const nat = nativeJobs().filter(matches), all = await loadExternal();
+  // Keep the external feed crypto-focused even when a broad search term is supplied.
+  const ex = all.filter(j => isCrypto(j) && matches(j));
+  const jobs = [...nat, ...ex];
+  res.json({ jobs: jobs.slice(0, 60).map(short), total: jobs.length,
+    filters: { query: q, location, remote: remoteOnly, visaSponsorship: visaOnly },
+    source: 'CareerPilot direct postings + crypto-filtered RemoteOK listings; external links go to the original listing' });
+}));
+app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, res) => {
+  const jobs = (await allJobs()).filter(j => j.native || isCrypto(j));
+  const rules = [['Solidity', /\bsolidity\b/i], ['Rust', /\brust\b/i], ['Smart contracts', /smart contract/i], ['DeFi', /\bdefi\b|decentralized finance/i], ['Trading', /trading|market making|quant/i], ['Security', /security|audit/i], ['Blockchain engineering', /blockchain|protocol engineer/i], ['Python', /\bpython\b/i], ['TypeScript', /typescript/i], ['Zero knowledge', /zero.?knowledge|\bzk\b/i], ['DevOps', /devops|kubernetes/i], ['Data analytics', /analytics|data engineer|dune/i]];
+  const hay = j => [j.title,j.company,j.location,...(j.tags||[]),j.description].join(' ');
+  const topSkills = rules.map(([skill,re])=>({skill,count:jobs.filter(j=>re.test(hay(j))).length})).filter(x=>x.count).sort((a,b)=>b.count-a.count).slice(0,8);
+  const dates=jobs.map(j=>Date.parse(j.date||'')).filter(Number.isFinite);
+  res.json({generatedAt:new Date().toISOString(),sampleSize:jobs.length,companies:new Set(jobs.map(j=>String(j.company||'').toLowerCase()).filter(Boolean)).size,directListings:jobs.filter(j=>j.native).length,remoteListings:jobs.filter(isRemote).length,explicitlySponsoredListings:jobs.filter(hasVisaSponsorship).length,postedLast24Hours:dates.filter(t=>t>=Date.now()-86400000).length,topSkills,confidence:jobs.length>=30?'broader sample':jobs.length>=10?'limited sample':'small sample',methodology:'Computed from current listing text. Skill mentions are not growth rates; visa support is counted only when explicitly stated.',feedAgeMinutes:ext.at?Math.max(0,Math.round((Date.now()-ext.at)/60000)):null});
 }));
 app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req, res) => {
   if (!req.user.profile_json) throw fail(400, 'Upload your CV first.');
   const profile = jparse(req.user.profile_json, {});
-  const q = String(req.body.q || '').toLowerCase().trim();
-  const pool = (await allJobs()).filter(j => j.native || (q ? (j.title + j.tags.join(' ')).toLowerCase().includes(q) : isCrypto(j)));
+  const q = String(req.body.q || '').toLowerCase().trim().slice(0, 120);
+  const location = String(req.body.location || '').toLowerCase().trim().slice(0, 80);
+  const remoteOnly = req.body.remote === true;
+  const visaOnly = req.body.visa === true;
+  const pool = (await allJobs()).filter(j => (j.native || isCrypto(j)) && searchMatch(j, q, location, remoteOnly, visaOnly));
   const cand = pool.map(j => ({ j, k: keywordScore(profile, j) })).sort((a, b) => b.k - a.k).slice(0, 15);
   let scored = cand.map(c => ({ ...short(c.j), score: c.k, reason: 'Skill keyword overlap' }));
   const rated = parseJson(await ai('You rate job fit for a candidate. Reply JSON only: array of {"id":string,"score":0-100,"reason":string (max 18 words)}. Be strict, do not inflate. Judge only skills and experience.' + DATA_NOTE,
