@@ -41,7 +41,7 @@ async function callCompat({ base, key, model, body, timeoutMs = 80000 }) {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
     body: JSON.stringify(payload), signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!r.ok) { const e = new Error('AI HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200)); e.httpStatus = r.status; throw e; }
+  if (!r.ok) { const e = new Error('AI HTTP ' + r.status + ' ' + (await r.text()).replace(/\s+/g, ' ').slice(0, 400)); e.httpStatus = r.status; throw e; }
   return fromOpenAI(await r.json());
 }
 

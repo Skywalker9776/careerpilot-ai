@@ -918,3 +918,11 @@ app.post('/api/admin/payouts/:id/paid', auth, adminOnly, (req, res) => { db.prep
 
 app.get('*', (req, res) => res.sendFile(INDEX_FILE));
 app.listen(PORT, () => console.log(`CareerPilot AI running on http://localhost:${PORT}`));
+// One-time AI self-test at startup (free-tier cost: a few tiny requests per deploy). Results go to the deploy log only.
+if (!AI_KEY && ALT_KEY && !E.AI_SELFTEST_OFF) setTimeout(async () => {
+  const tool = [{ name: 'ping', description: 'test', input_schema: { type: 'object', properties: {} } }];
+  for (const model of ALT_MODELS) for (const [label, extra] of [['plain', {}], ['tools', { tools: tool }]]) {
+    try { await callCompat({ base: ALT_BASE, key: ALT_KEY, model, body: { max_tokens: 20, system: 'Reply with OK.', messages: [{ role: 'user', content: 'ping' }], ...extra } }); console.log('AI self-test', model, label, 'OK'); }
+    catch (e) { console.error('AI self-test', model, label, 'FAILED', String(e.message).slice(0, 420)); }
+  }
+}, 4000);
