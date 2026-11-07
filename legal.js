@@ -51,14 +51,14 @@ function privacy(cfg) {
 </ul>
 
 <h2>3. AI processing</h2>
-<p>When AI features are enabled, the text of your CV, job descriptions and your messages to the Copilot are sent to Anthropic's API to produce analysis, drafts and answers. Anthropic processes that data under its own terms and privacy policy. AI output can be wrong; you should check it before you rely on it or send it.</p>
+<p>When AI features are enabled, the text of your CV, job descriptions and your messages to the Copilot are sent to our AI provider (Anthropic's Claude API or Google's Gemini API, depending on how the service is configured) to produce analysis, drafts and answers. The provider processes that data under its own terms and privacy policy. Some providers' free tiers may allow them to use submitted text to improve their services, so avoid putting sensitive details in your CV. AI output can be wrong; you should check it before you rely on it or send it.</p>
 <p><b>Employer screening:</b> AI screening is decision support only. Applicants are shown to employers under an alias, without name, contact details or CV, until the employer shortlists them. The system never rejects anyone automatically and never scores protected characteristics. Every hiring decision is made by a human employer.</p>
 <p><b>Autopilot:</b> it is off unless you turn it on, it is capped, and it only submits to jobs posted directly on CareerPilot. Every action is logged. Jobs on other websites are only drafted for you to send yourself.</p>
 
 <h2>4. Who else handles data</h2>
 <ul>
 <li><b>Railway</b> hosts the application and database.</li>
-<li><b>Anthropic</b> processes text for AI features, as described above.</li>
+<li><b>Anthropic or Google (Gemini)</b> process text for AI features, as described above.</li>
 <li><b>Internet Identity</b> (identity.ic0.app, run by the DFINITY Foundation) if you use Internet Identity sign-in. We receive only a pseudonymous principal, never your device or passkey details.</li>
 <li><b>Google</b> if you use Google sign-in (and Google Fonts load the page's typefaces).</li>
 <li><b>Blockchain nodes and explorers</b> (BNB Smart Chain RPC, ICP ledger) are queried with public transaction hashes to verify payments.</li>

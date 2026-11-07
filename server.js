@@ -23,6 +23,13 @@ if (!JWT_SECRET || JWT_SECRET.length < 24) { console.error('Set JWT_SECRET in .e
 const AI_KEY = E.ANTHROPIC_API_KEY || '';
 const AI_BASE = E.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
 const AI_MODEL = E.AI_MODEL || 'claude-sonnet-5-5';
+// Optional free/alternative provider (OpenAI-compatible): Gemini by default, or Groq/OpenRouter via OPENAI_COMPAT_*.
+const ALT_KEY = E.OPENAI_COMPAT_API_KEY || E.GEMINI_API_KEY || '';
+const ALT_BASE = E.OPENAI_COMPAT_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
+const ALT_MODEL = E.OPENAI_COMPAT_MODEL || E.GEMINI_MODEL || 'gemini-flash-latest';
+const AI_ON = !!(AI_KEY || ALT_KEY); // Anthropic is used if its key is set, otherwise the alternative provider
+const AI_PROVIDER = AI_KEY ? 'anthropic' : ALT_KEY ? (E.OPENAI_COMPAT_API_KEY ? 'openai-compatible' : 'gemini') : 'none';
+const { callCompat } = require('./llm');
 const ADMIN_EMAIL = (E.ADMIN_EMAIL || '').toLowerCase();
 const CONTACT_X = (E.CONTACT_X || '').replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
 const MERCHANT_BNB = (E.MERCHANT_BNB_ADDRESS || '').toLowerCase();
@@ -359,6 +366,10 @@ const legalCfg = () => ({ products: PRODUCTS, merchant: { bnb: MERCHANT_BNB, icp
 
 // ---------- AI ----------
 async function aiRaw(body) {
+  if (!AI_KEY && ALT_KEY) {
+    try { return await callCompat({ base: ALT_BASE, key: ALT_KEY, model: ALT_MODEL, body }); }
+    catch (e) { if (e.httpStatus === 429) throw fail(503, 'The free AI is busy right now (daily or per-minute limit reached). Please try again in a few minutes.'); throw e; }
+  }
   const r = await fetch(AI_BASE + '/v1/messages', {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ model: AI_MODEL, ...body }),
@@ -367,7 +378,7 @@ async function aiRaw(body) {
   return r.json();
 }
 async function ai(system, user, max = 1200) {
-  if (!AI_KEY) return null;
+  if (!AI_ON) return null;
   try { const j = await aiRaw({ max_tokens: max, system, messages: [{ role: 'user', content: user }] }); return (j.content || []).map(c => c.text || '').join(''); }
   catch (e) { console.error('AI error:', e.message); return null; }
 }
@@ -470,7 +481,7 @@ app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req
   const rated = parseJson(await ai('You rate job fit for a candidate. Reply JSON only: array of {"id":string,"score":0-100,"reason":string (max 18 words)}. Be strict, do not inflate. Judge only skills and experience.' + DATA_NOTE,
     JSON.stringify({ candidate: profile, jobs: cand.map(c => ({ id: c.j.id, title: c.j.title, company: c.j.company, tags: c.j.tags, text: c.j.description.slice(0, 500) })) }), 1500));
   if (Array.isArray(rated)) { const m = new Map(rated.map(r => [r.id, r])); scored = scored.map(s => m.has(s.id) ? { ...s, score: clamp(m.get(s.id).score, 0, 100), reason: String(m.get(s.id).reason || '').slice(0, 160) } : s); }
-  res.json({ matches: scored.sort((a, b) => b.score - a.score), scoredBy: Array.isArray(rated) ? 'AI' : 'keyword overlap (set ANTHROPIC_API_KEY for AI scoring)' });
+  res.json({ matches: scored.sort((a, b) => b.score - a.score), scoredBy: Array.isArray(rated) ? 'AI' : 'keyword overlap (AI key not set)' });
 }));
 app.post('/api/jobs/:id/insights', auth, candidate, rateLimit(20, 600), wrap(async (req, res) => {
   if (!req.user.cv_text) throw fail(400, 'Upload your CV first.');
@@ -485,9 +496,9 @@ app.post('/api/jobs/:id/insights', auth, candidate, rateLimit(20, 600), wrap(asy
     const hay = (job.title + ' ' + job.tags.join(' ') + ' ' + job.description).toLowerCase(), have = (profile.skills || []).filter(s => hay.includes(s));
     const tagGaps = job.tags.filter(t => !(profile.skills || []).includes(t.toLowerCase())).slice(0, 6);
     text = kind === 'gap' ? `Matches (from your CV): ${have.join(', ') || 'none detected'}\nTags in this listing not on your CV: ${tagGaps.join(', ') || 'none'}\n\n(Enable AI for a full gap analysis and 30-day plan.)`
-      : 'Enable AI (ANTHROPIC_API_KEY) to generate tailored interview questions.';
+      : 'Turn on AI (add an AI key on the server) to generate tailored interview questions.';
   }
-  res.json({ text, by: text && AI_KEY ? 'ai' : 'basic' });
+  res.json({ text, by: text && AI_ON ? 'ai' : 'basic' });
 }));
 
 // ---------- drafts / applications ----------
@@ -615,7 +626,7 @@ app.post('/api/employer/jobs/ai-describe', auth, employer, rateLimit(15, 600), w
   const title = String(req.body.title || '').slice(0, 100), notes = String(req.body.notes || '').slice(0, 1500);
   if (!title) throw fail(400, 'Enter a job title.');
   const t = await ai('You write clear, inclusive job descriptions for crypto/Web3 and tech roles: short intro, responsibilities, requirements (separate must-have from nice-to-have), what we offer only if given. No discriminatory or age/gender-coded language. Do not invent salary or benefits. Plain text, max 300 words.' + DATA_NOTE, `Company: ${req.user.company_name}\nRole: ${title}\nNotes: ${notes}`, 900);
-  if (!t) throw fail(501, 'AI is not configured (set ANTHROPIC_API_KEY).');
+  if (!t) throw fail(501, 'AI is not configured (add ANTHROPIC_API_KEY or GEMINI_API_KEY).');
   res.json({ description: t.trim() });
 }));
 app.post('/api/employer/jobs', auth, employer, wrap(async (req, res) => {
@@ -670,7 +681,7 @@ app.post('/api/employer/applicants/:id/kit', auth, employer, rateLimit(20, 600),
     ? 'You design structured interviews. Output plain text: 6 job-related questions tailored to the candidate\'s stated experience and gaps, each with what a strong answer shows. Use only job-relevant criteria; no questions about protected characteristics, family plans, or age. Max 300 words.'
     : 'Write a short, warm, professional message from the hiring team inviting this candidate to the next step. Do not use the candidate\'s name or personal details; leave "[Name]" as the greeting placeholder. Max 110 words.';
   const t = await ai(sys + DATA_NOTE, JSON.stringify({ role: r.title, jobText: r.description.slice(0, 2000), candidateSummary: r.summary, strengths: jparse(r.strengths, []), gaps: jparse(r.gaps, []), company: req.user.company_name }), 800);
-  if (!t) throw fail(501, 'AI is not configured (set ANTHROPIC_API_KEY).');
+  if (!t) throw fail(501, 'AI is not configured (add ANTHROPIC_API_KEY or GEMINI_API_KEY).');
   res.json({ text: t.trim() });
 }));
 
@@ -701,7 +712,7 @@ app.get('/api/market/brief', auth, rateLimit(10, 3600), wrap(async (req, res) =>
   if (briefCache.text && Date.now() - briefCache.at < 3600000) return res.json({ brief: briefCache.text });
   const data = { jobs: await jobTrends(), crypto: await loadCrypto() };
   const t = await ai('You write a 100-word market brief for crypto job seekers and hiring teams, strictly from the JSON given: what skills are in demand, hiring volume, and one line on crypto market conditions. No predictions, no financial advice, no numbers not in the data.', JSON.stringify(data), 400);
-  if (!t) throw fail(501, 'AI is not configured (set ANTHROPIC_API_KEY).');
+  if (!t) throw fail(501, 'AI is not configured (add ANTHROPIC_API_KEY or GEMINI_API_KEY).');
   briefCache = { at: Date.now(), text: t.trim() }; res.json({ brief: briefCache.text });
 }));
 
@@ -738,7 +749,7 @@ async function runTool(u, name, a) {
   }
 }
 app.post('/api/agent', auth, rateLimit(30, 600), wrap(async (req, res) => {
-  if (!AI_KEY) throw fail(501, 'The Copilot agent needs ANTHROPIC_API_KEY configured on the server.');
+  if (!AI_ON) throw fail(501, 'The Copilot agent needs an AI key (ANTHROPIC_API_KEY or GEMINI_API_KEY) configured on the server.');
   const u = req.user, isEmp = u.role === 'employer';
   const system = (isEmp
     ? `You are the CareerPilot hiring assistant for ${u.company_name}. Help with job descriptions, reviewing blind-screened applicants and hiring strategy. You can read data but never reject, advance or contact candidates: a human decides.`
@@ -765,7 +776,7 @@ app.post('/api/agent', auth, rateLimit(30, 600), wrap(async (req, res) => {
 
 // ---------- payments ----------
 app.get('/api/pricing', (req, res) => res.json({ plans: PLANS, products: PRODUCTS, freeListings: EMPLOYER_FREE_JOBS, listingDays: LISTING_DAYS, cycleDays: CYCLE_DAYS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
-  configured: { bnb: !!MERCHANT_BNB, icp: !!MERCHANT_ICP, ai: !!AI_KEY, email: !!(SMTP_URL && nodemailer) }, referralPercent: REF_PERCENT, employerFreeJobs: EMPLOYER_FREE_JOBS }));
+  configured: { bnb: !!MERCHANT_BNB, icp: !!MERCHANT_ICP, ai: AI_ON, aiProvider: AI_PROVIDER, email: !!(SMTP_URL && nodemailer) }, referralPercent: REF_PERCENT, employerFreeJobs: EMPLOYER_FREE_JOBS }));
 const toUnits = (s, d) => { const [a, b = ''] = String(s).split('.'); return BigInt(a) * 10n ** BigInt(d) + BigInt((b + '0'.repeat(d)).slice(0, d)); };
 async function rpc(method, params) {
   const j = await (await fetch(BSC_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json();
