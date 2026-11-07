@@ -33,10 +33,13 @@ function fromOpenAI(j) {
   return { content, stop_reason: (msg.tool_calls || []).length ? 'tool_use' : 'end_turn' };
 }
 
-async function callCompat({ base, key, model, body, timeoutMs = 45000 }) {
+async function callCompat({ base, key, model, body, timeoutMs = 80000 }) {
+  const payload = toOpenAI(body, model);
+  // Gemini's "latest" models think at length by default, which can exceed the timeout; keep thinking short (override with GEMINI_REASONING=low|medium|high|none).
+  if (/generativelanguage\.googleapis\.com/.test(base)) payload.reasoning_effort = process.env.GEMINI_REASONING || 'low';
   const r = await fetch(base.replace(/\/+$/, '') + '/chat/completions', {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
-    body: JSON.stringify(toOpenAI(body, model)), signal: AbortSignal.timeout(timeoutMs),
+    body: JSON.stringify(payload), signal: AbortSignal.timeout(timeoutMs),
   });
   if (!r.ok) { const e = new Error('AI HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200)); e.httpStatus = r.status; throw e; }
   return fromOpenAI(await r.json());
