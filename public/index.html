@@ -326,9 +326,12 @@ function wireJobs() {
   document.querySelectorAll('[data-ins]').forEach(b => b.onclick = run(b, '…', async () => { const [k, id] = b.dataset.ins.split(/:(.+)/); const j = await api('/jobs/' + encodeURIComponent(id) + '/insights', { method: 'POST', json: { kind: k } }); panel(k === 'gap' ? 'Skill gap & 30-day plan' : 'Interview prep', j.text); }));
 }
 async function viewJobs() {
-  body(`<div class="flex flex-wrap gap-2 mb-4"><input id="jq" placeholder="Filter (e.g. solidity, marketing)" class="inp grow !w-auto"><button id="jBrowse" class="btn2">Browse</button><button id="jMatch" class="btn">MATCH TO MY CV</button></div>
-    <div id="jMeta" class="text-[11px] text-gray-600 mb-3"></div><div id="jList" class="grid md:grid-cols-2 gap-3"><div class="text-sm text-gray-500">Click Browse or Match.</div></div>`);
-  $('#jBrowse').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Loading…</div>'; const j = await api('/jobs?q=' + encodeURIComponent($('#jq').value)).catch(e => (toast(e.message), { jobs: [] }));
+  body(`<div class="mb-3"><div class="font-display text-xs text-purple-400 tracking-widest mb-1">CRYPTO OPPORTUNITY RADAR Ω</div><p class="text-xs text-gray-500">Search crypto-native roles across CareerPilot employer listings and the external RemoteOK feed.</p></div>
+    <div class="grid sm:grid-cols-[1fr_1fr_auto_auto] gap-2 mb-4"><input id="jq" placeholder="Role, skill, company or keyword" class="inp"><input id="jl" placeholder="Location (e.g. Remote, Dubai)" class="inp"><button id="jBrowse" class="btn2">Browse</button><button id="jMatch" class="btn">MATCH TO MY CV</button></div>
+    <div id="jMeta" class="text-[11px] text-gray-600 mb-3"></div><div id="jList" class="grid md:grid-cols-2 gap-3"><div class="text-sm text-gray-500">Search opportunities or match them to your CV.</div></div>`);
+  $('#jBrowse').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Loading…</div>';
+    const params = new URLSearchParams({ q: $('#jq').value, location: $('#jl').value });
+    const j = await api('/jobs?' + params.toString()).catch(e => (toast(e.message), { jobs: [] }));
     $('#jMeta').textContent = j.jobs.length ? `${j.total} listings · ${j.source}` : ''; $('#jList').innerHTML = j.jobs.map(jobCard).join('') || '<div class="text-sm text-gray-500">No listings found (a job source may be unreachable).</div>'; wireJobs(); };
   $('#jMatch').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Scoring against your CV…</div>';
     try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
