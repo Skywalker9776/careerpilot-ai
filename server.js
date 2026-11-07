@@ -492,8 +492,13 @@ app.get('/api/jobs', auth, wrap(async (req, res) => {
 app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req, res) => {
   if (!req.user.profile_json) throw fail(400, 'Upload your CV first.');
   const profile = jparse(req.user.profile_json, {});
-  const q = String(req.body.q || '').toLowerCase().trim();
-  const pool = (await allJobs()).filter(j => j.native || (q ? (j.title + j.tags.join(' ')).toLowerCase().includes(q) : isCrypto(j)));
+  const q = String(req.body.q || '').toLowerCase().trim().slice(0, 120);
+  const location = String(req.body.location || '').toLowerCase().trim().slice(0, 80);
+  const pool = (await allJobs()).filter(j => {
+    const searchable = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
+    return (j.native || isCrypto(j)) && (!q || searchable.includes(q)) &&
+      (!location || String(j.location || '').toLowerCase().includes(location));
+  });
   const cand = pool.map(j => ({ j, k: keywordScore(profile, j) })).sort((a, b) => b.k - a.k).slice(0, 15);
   let scored = cand.map(c => ({ ...short(c.j), score: c.k, reason: 'Skill keyword overlap' }));
   const rated = parseJson(await ai('You rate job fit for a candidate. Reply JSON only: array of {"id":string,"score":0-100,"reason":string (max 18 words)}. Be strict, do not inflate. Judge only skills and experience.' + DATA_NOTE,
