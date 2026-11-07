@@ -315,6 +315,7 @@ function atsHtml(a) {
 function jobCard(j) {
   return `<div class="card !p-4"><div class="flex justify-between gap-3"><div><div class="font-semibold text-sm">${esc(j.title)} ${j.native ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Direct</span>' : ''}</div><div class="text-xs text-gray-500">${esc(j.company)} · ${esc(j.location)}${j.salary ? ' · ' + esc(j.salary) : ''}</div></div>
     ${j.score != null ? `<div class="font-display text-lg ${j.score >= 70 ? 'text-emerald-400' : j.score >= 40 ? 'text-amber-400' : 'text-gray-500'}">${j.score}</div>` : ''}</div>
+    <div class="flex flex-wrap gap-1.5 mt-2">${j.remote ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Remote</span>' : ''}${j.visaSponsorship ? '<span class="chip !bg-sky-500/15 !text-sky-300">Visa sponsorship stated</span>' : ''}</div>
     ${j.reason ? `<div class="text-xs text-gray-400 mt-2">${esc(j.reason)}</div>` : ''}
     <div class="flex flex-wrap gap-1.5 mt-2">${(j.tags || []).slice(0, 5).map(t => `<span class="text-[10px] bg-gray-900 rounded px-2 py-0.5 text-gray-400">${esc(t)}</span>`).join('')}</div>
     <div class="flex flex-wrap gap-2 mt-3"><button data-draft="${esc(j.id)}" class="btn2 !border-purple-500/40 !text-purple-300">Draft application</button>
@@ -327,14 +328,14 @@ function wireJobs() {
 }
 async function viewJobs() {
   body(`<div class="mb-3"><div class="font-display text-xs text-purple-400 tracking-widest mb-1">CRYPTO OPPORTUNITY RADAR Ω</div><p class="text-xs text-gray-500">Search crypto-native roles across CareerPilot employer listings and the external RemoteOK feed.</p></div>
-    <div class="grid sm:grid-cols-[1fr_1fr_auto_auto] gap-2 mb-4"><input id="jq" placeholder="Role, skill, company or keyword" class="inp"><input id="jl" placeholder="Location (e.g. Remote, Dubai)" class="inp"><button id="jBrowse" class="btn2">Browse</button><button id="jMatch" class="btn">MATCH TO MY CV</button></div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-2 mb-4"><input id="jq" placeholder="Role, skill, company or keyword" class="inp"><input id="jl" placeholder="Location (e.g. Dubai)" class="inp"><label class="flex items-center gap-2 text-xs text-gray-400 px-2"><input id="jRemote" type="checkbox"> Remote only</label><label class="flex items-center gap-2 text-xs text-gray-400 px-2"><input id="jVisa" type="checkbox"> Visa sponsorship</label><button id="jBrowse" class="btn2">Browse</button><button id="jMatch" class="btn">MATCH TO MY CV</button></div>
     <div id="jMeta" class="text-[11px] text-gray-600 mb-3"></div><div id="jList" class="grid md:grid-cols-2 gap-3"><div class="text-sm text-gray-500">Search opportunities or match them to your CV.</div></div>`);
   $('#jBrowse').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Loading…</div>';
-    const params = new URLSearchParams({ q: $('#jq').value, location: $('#jl').value });
+    const params = new URLSearchParams({ q: $('#jq').value, location: $('#jl').value, remote: $('#jRemote').checked ? '1' : '0', visa: $('#jVisa').checked ? '1' : '0' });
     const j = await api('/jobs?' + params.toString()).catch(e => (toast(e.message), { jobs: [] }));
     $('#jMeta').textContent = j.jobs.length ? `${j.total} listings · ${j.source}` : ''; $('#jList').innerHTML = j.jobs.map(jobCard).join('') || '<div class="text-sm text-gray-500">No listings found (a job source may be unreachable).</div>'; wireJobs(); };
   $('#jMatch').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Scoring against your CV…</div>';
-    try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value, location: $('#jl').value } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
+    try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value, location: $('#jl').value, remote: $('#jRemote').checked, visa: $('#jVisa').checked } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
     catch (e) { toast(e.message); $('#jList').innerHTML = ''; } };
 }
 
