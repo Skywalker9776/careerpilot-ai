@@ -28,6 +28,7 @@ const AI_MODEL = E.AI_MODEL || 'claude-sonnet-5-5';
 const ALT_KEY = E.OPENAI_COMPAT_API_KEY || E.GEMINI_API_KEY || '';
 const ALT_BASE = E.OPENAI_COMPAT_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
 const ALT_MODEL = E.OPENAI_COMPAT_MODEL || E.GEMINI_MODEL || 'gemini-flash-latest';
+const ALT_MODELS = [...new Set([ALT_MODEL, ...String(E.AI_FALLBACK_MODELS || 'gemini-3.8-flash,gemini-3.5-flash-lite,gemini-flash-latest').split(',').map(x => x.trim()).filter(Boolean)])];
 const AI_ON = !!(AI_KEY || ALT_KEY); // Anthropic is used if its key is set, otherwise the alternative provider
 const AI_PROVIDER = AI_KEY ? 'anthropic' : ALT_KEY ? (E.OPENAI_COMPAT_API_KEY ? 'openai-compatible' : 'gemini') : 'none';
 const { callCompat } = require('./llm');
@@ -368,8 +369,18 @@ const legalCfg = () => ({ products: PRODUCTS, merchant: { bnb: MERCHANT_BNB, icp
 // ---------- AI ----------
 async function aiRaw(body) {
   if (!AI_KEY && ALT_KEY) {
-    try { return await callCompat({ base: ALT_BASE, key: ALT_KEY, model: ALT_MODEL, body }); }
-    catch (e) { if (e.httpStatus === 429) throw fail(503, 'The free AI is busy right now (daily or per-minute limit reached). Please try again in a few minutes.'); throw e; }
+    // Try the main model, then fallbacks, when the provider is busy (429/5xx), the model is gone (404) or the call times out.
+    let last;
+    for (const model of ALT_MODELS) {
+      try { return await callCompat({ base: ALT_BASE, key: ALT_KEY, model, body }); }
+      catch (e) {
+        last = e; const st = e.httpStatus;
+        console.error('AI model', model, 'failed:', String(e.message).split('\n')[0].slice(0, 160));
+        if (st && st !== 429 && st !== 404 && st < 500 && st !== 400) break; // bad key etc.: another model will not help
+      }
+    }
+    if (last && (!last.httpStatus || last.httpStatus === 429 || last.httpStatus >= 500 || last.httpStatus === 404 || last.httpStatus === 400)) throw fail(503, 'The free AI is busy right now (provider limit or high demand). Please try again in a minute.');
+    throw last;
   }
   const r = await fetch(AI_BASE + '/v1/messages', {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': AI_KEY, 'anthropic-version': '2023-06-01' },
