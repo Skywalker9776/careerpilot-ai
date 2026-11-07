@@ -833,6 +833,18 @@ app.get('/api/referrals', auth, (req, res) => {
   rows.forEach(r => { const k = r.asset + ':' + r.status; totals[k] = (totals[k] || 0) + Number(r.amount); });
   res.json({ refCode: req.user.ref_code, percent: REF_PERCENT, signups: db.prepare('SELECT COUNT(*) c FROM users WHERE referred_by=?').get(req.user.id).c, earnings: rows, totals });
 });
+// Admin-only database backup (consistent snapshot via SQLite backup API). File contains personal data.
+app.get('/api/admin/backup', auth, adminOnly, async (req, res) => {
+  const tmp = path.join(DATA_DIR, 'backup-' + Date.now() + '.tmp.db');
+  try {
+    await db.backup(tmp);
+    const name = 'careerpilot-backup-' + new Date().toISOString().slice(0, 10) + '.db';
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + name + '"');
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(tmp, err => { fs.unlink(tmp, () => {}); if (err && !res.headersSent) res.status(500).json({ error: 'Backup failed.' }); });
+  } catch (e) { fs.unlink(tmp, () => {}); console.error('backup failed', e.message); res.status(500).json({ error: 'Backup failed.' }); }
+});
 app.get('/api/admin/payouts', auth, adminOnly, (req, res) => res.json({ pending: db.prepare(`SELECT r.id, r.amount, r.asset, u.email, u.payout_wallet FROM referral_earnings r JOIN users u ON u.id=r.referrer_id WHERE r.status='pending' ORDER BY r.created_at`).all() }));
 app.post('/api/admin/payouts/:id/paid', auth, adminOnly, (req, res) => { db.prepare("UPDATE referral_earnings SET status='paid', paid_tx=? WHERE id=?").run(String(req.body.txHash || '').slice(0, 130), req.params.id); res.json({ ok: true }); });
 

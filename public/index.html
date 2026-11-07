@@ -482,6 +482,18 @@ async function viewWallet() {
     <div class="grid lg:grid-cols-2 gap-6 mt-6"><div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">MY PAYMENTS</h3>${w.payments.map(p => `<div class="text-xs border-b border-gray-900 py-2"><b>${esc(p.amount)} ${esc(p.chain)}</b> · ${esc(P.products[p.plan]?.name || p.plan)} · ${new Date(p.created_at * 1000).toLocaleDateString()}<br><a class="underline text-gray-500 font-mono break-all" target="_blank" rel="noopener" href="${esc(txLink(p))}">${esc(p.tx_hash.slice(0, 18))}…</a></div>`).join('') || '<div class="text-sm text-gray-500">No payments yet.</div>'}</div>
     <div class="card"><h3 class="font-display text-xs text-purple-400 mb-3">REFERRAL EARNINGS</h3><div class="text-sm mb-2">${esc(tot)}</div>${w.referralEarnings.slice(0, 10).map(r => `<div class="text-xs text-gray-400 py-1">${esc(r.amount)} ${esc(r.asset)} · ${esc(r.status)} · ${new Date(r.created_at * 1000).toLocaleDateString()}</div>`).join('')}</div></div>`);
   $('#wConn').onclick = async () => { await connectWallet(); viewWallet(); };
+  if (ME.founder) {
+    const bx = document.createElement('div'); bx.className = 'card mt-6';
+    bx.innerHTML = '<h3 class="font-display text-xs text-purple-400 mb-3">ADMIN · DATABASE BACKUP</h3><p class="text-[11px] text-gray-500 mb-3">Downloads a full copy of the database. It contains users\' personal data and password hashes: store it privately, never share it. Download one regularly.</p><button id="bkBtn" class="btn2">Download backup</button>';
+    $('#wConn').closest('.grid').parentElement.appendChild(bx);
+    $('#bkBtn').onclick = run($('#bkBtn'), 'Preparing…', async () => {
+      const r = await fetch('/api/admin/backup', { headers: { Authorization: 'Bearer ' + TOKEN } });
+      if (!r.ok) throw new Error('Backup failed');
+      const u = URL.createObjectURL(await r.blob()), l = document.createElement('a');
+      l.href = u; l.download = 'careerpilot-backup-' + new Date().toISOString().slice(0, 10) + '.db'; l.click(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+      toast('Backup downloaded.');
+    });
+  }
   $('#wSave').onclick = run($('#wSave'), '…', async () => { await api('/profile', { method: 'POST', json: { payoutWallet: $('#wPayout').value } }); toast('Payout wallet saved.'); });
 }
 
