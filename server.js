@@ -470,11 +470,11 @@ function nativeJobs() {
     url: '', featured: !!p.featured, salary: p.salary, date: new Date(p.created_at * 1000).toISOString(), source: 'CareerPilot', native: true, salaryMin: 0, salaryMax: 0 }));
 }
 const isCrypto = j => { const h = (j.title + ' ' + j.tags.join(' ') + ' ' + j.description).toLowerCase(); return CRYPTO_TAGS.some(t => h.includes(t)); };
-const isRemote = j => /\\b(remote|worldwide|anywhere|work from home|distributed)\\b/i.test(String(j.location || '') + ' ' + (j.tags || []).join(' '));
-const hasVisaSponsorship = j => /\\b(visa sponsorship|sponsor(?:ed|sorship)?\\s+(?:a\\s+)?visa|visa\\s+support|work permit sponsorship|relocation\\s+(?:and\\s+)?visa)\\b/i.test(String(j.title || '') + ' ' + String(j.description || ''));
+const isRemote = j => /\b(remote|worldwide|anywhere|work from home|distributed)\b/i.test(String(j.location || '') + ' ' + (j.tags || []).join(' '));
+const hasVisaSponsorship = j => /\b(visa sponsorship|sponsor(?:ed|sorship)?\s+(?:a\s+)?visa|visa\s+support|work permit sponsorship|relocation\s+(?:and\s+)?visa)\b/i.test(String(j.title || '') + ' ' + String(j.description || ''));
 const searchMatch = (j, q, location, remoteOnly, visaOnly) => {
   const hay = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
-  const terms = q.split(/\\s+/).filter(Boolean);
+  const terms = q.split(/\s+/).filter(Boolean);
   return terms.every(term => hay.includes(term)) &&
     (!location || String(j.location || '').toLowerCase().includes(location)) &&
     (!remoteOnly || isRemote(j)) && (!visaOnly || hasVisaSponsorship(j));
