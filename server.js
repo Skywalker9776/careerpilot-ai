@@ -459,7 +459,7 @@ async function loadExternal() {
       id: 'ro-' + j.id, title: j.position || j.title, company: j.company || '', tags: Array.isArray(j.tags) ? j.tags.map(String) : [],
       location: j.location || 'Remote', description: strip(j.description).slice(0, 3000), url: j.url || j.apply_url || '',
       salaryMin: Number(j.salary_min) || 0, salaryMax: Number(j.salary_max) || 0,
-      salary: j.salary_min ? `${j.salary_min}–${j.salary_max}` : '', date: j.date || '', source: 'RemoteOK', native: false }));
+      salary: j.salary_min ? `$${j.salary_min}–$${j.salary_max}` : '', date: j.date || '', source: 'RemoteOK', native: false }));
     ext = { at: started, lastAttempt: started, jobs };
   } catch (e) { console.error('Job fetch failed:', e.message); }
   return ext.jobs; // keep the last known good feed if the provider is temporarily unavailable
