@@ -504,7 +504,8 @@ app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, re
   const hay = j => [j.title,j.company,j.location,...(j.tags||[]),j.description].join(' ');
   const topSkills = rules.map(([skill,re])=>({skill,count:jobs.filter(j=>re.test(hay(j))).length})).filter(x=>x.count).sort((a,b)=>b.count-a.count).slice(0,8);
   const dates=jobs.map(j=>Date.parse(j.date||'')).filter(Number.isFinite);
-  const summary = buildRadarSummary(jobs);\n  res.json({generatedAt:new Date().toISOString(),...summary,topSkills,duplicateCount:Math.max(0,(await allJobs()).filter(j=>j.native||isCrypto(j)).length-summary.sampleSize),methodology:'Computed from current listing text. Role family, seniority and employment type are inferred from listing wording. Skill mentions are not growth rates; salary filters only include listings with numeric salary fields; visa support is counted only when explicitly stated.',feedAgeMinutes:ext.at?Math.max(0,Math.round((Date.now()-ext.at)/60000)):null});
+  const summary = buildRadarSummary(jobs);
+  res.json({generatedAt:new Date().toISOString(),...summary,topSkills,duplicateCount:Math.max(0,(await allJobs()).filter(j=>j.native||isCrypto(j)).length-summary.sampleSize),methodology:'Computed from current listing text. Role family, seniority and employment type are inferred from listing wording. Skill mentions are not growth rates; salary filters only include listings with numeric salary fields; visa support is counted only when explicitly stated.',feedAgeMinutes:ext.at?Math.max(0,Math.round((Date.now()-ext.at)/60000)):null});
 }));
 app.get('/api/radar/search', auth, rateLimit(30, 600), wrap(async (req, res) => {
   const sourceJobs = (await allJobs()).filter(j => j.native || isCrypto(j));
