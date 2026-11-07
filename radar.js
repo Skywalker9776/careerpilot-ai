@@ -1,26 +1,26 @@
 'use strict';
 
 const ROLE_RULES = [
-  ['Trading & markets', /\\b(trader|trading|market maker|quant|portfolio|investment|financial analyst)\\b/i],
-  ['Engineering', /\\b(engineer|developer|software|frontend|backend|full.?stack|solidity|rust|protocol)\\b/i],
-  ['Security & audit', /\\b(security|auditor|audit|penetration|smart contract review)\\b/i],
-  ['Research & data', /\\b(research|analyst|data scientist|data analyst|on.chain|tokenomics)\\b/i],
-  ['Business & growth', /\\b(business development|partnership|sales|growth|marketing|community)\\b/i],
-  ['Operations & compliance', /\\b(operations|compliance|kyc|aml|risk|legal)\\b/i],
-  ['Product & design', /\\b(product manager|product designer|ux|ui designer)\\b/i]
+  ['Trading & markets', /\b(trader|trading|market maker|quant|portfolio|investment|financial analyst)\b/i],
+  ['Engineering', /\b(engineer|developer|software|frontend|backend|full.?stack|solidity|rust|protocol)\b/i],
+  ['Security & audit', /\b(security|auditor|audit|penetration|smart contract review)\b/i],
+  ['Research & data', /\b(research|analyst|data scientist|data analyst|on.chain|tokenomics)\b/i],
+  ['Business & growth', /\b(business development|partnership|sales|growth|marketing|community)\b/i],
+  ['Operations & compliance', /\b(operations|compliance|kyc|aml|risk|legal)\b/i],
+  ['Product & design', /\b(product manager|product designer|ux|ui designer)\b/i]
 ];
 const LEVEL_RULES = [
-  ['Internship', /\\b(intern|internship|trainee)\\b/i],
-  ['Entry level', /\\b(junior|entry.?level|graduate|associate)\\b/i],
-  ['Mid level', /\\b(mid.?level|intermediate)\\b/i],
-  ['Senior', /\\b(senior|sr\\.?|lead|staff|principal)\\b/i],
-  ['Executive', /\\b(head of|director|vice president|vp|chief|cto|ceo)\\b/i]
+  ['Internship', /\b(intern|internship|trainee)\b/i],
+  ['Entry level', /\b(junior|entry.?level|graduate|associate)\b/i],
+  ['Mid level', /\b(mid.?level|intermediate)\b/i],
+  ['Senior', /\b(senior|sr\.?|lead|staff|principal)\b/i],
+  ['Executive', /\b(head of|director|vice president|vp|chief|cto|ceo)\b/i]
 ];
 const TYPE_RULES = [
-  ['Internship', /\\b(intern|internship)\\b/i],
-  ['Part-time', /\\b(part.?time)\\b/i],
-  ['Contract', /\\b(contract|contractor|freelance|consultant)\\b/i],
-  ['Full-time', /\\b(full.?time|permanent)\\b/i]
+  ['Internship', /\b(intern|internship)\b/i],
+  ['Part-time', /\b(part.?time)\b/i],
+  ['Contract', /\b(contract|contractor|freelance|consultant)\b/i],
+  ['Full-time', /\b(full.?time|permanent)\b/i]
 ];
 
 function textOf(job) {
@@ -64,7 +64,7 @@ function filterRadarJobs(jobs, filters = {}, now = Date.now()) {
   const all = dedupe(jobs);
   const matches = all.filter(job => {
     const hay = textOf(job).toLowerCase();
-    if (q && !q.split(/\\s+/).every(term => hay.includes(term))) return false;
+    if (q && !q.split(/\s+/).every(term => hay.includes(term))) return false;
     if (location && !String(job.location || '').toLowerCase().includes(location)) return false;
     if (remote && !job.remote) return false;
     if (visa && !job.visaSponsorship) return false;
