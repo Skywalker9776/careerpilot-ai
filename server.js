@@ -470,23 +470,31 @@ function nativeJobs() {
     url: '', featured: !!p.featured, salary: p.salary, date: new Date(p.created_at * 1000).toISOString(), source: 'CareerPilot', native: true, salaryMin: 0, salaryMax: 0 }));
 }
 const isCrypto = j => { const h = (j.title + ' ' + j.tags.join(' ') + ' ' + j.description).toLowerCase(); return CRYPTO_TAGS.some(t => h.includes(t)); };
+const isRemote = j => /\\b(remote|worldwide|anywhere|work from home|distributed)\\b/i.test(String(j.location || '') + ' ' + (j.tags || []).join(' '));
+const hasVisaSponsorship = j => /\\b(visa sponsorship|sponsor(?:ed|sorship)?\\s+(?:a\\s+)?visa|visa\\s+support|work permit sponsorship|relocation\\s+(?:and\\s+)?visa)\\b/i.test(String(j.title || '') + ' ' + String(j.description || ''));
+const searchMatch = (j, q, location, remoteOnly, visaOnly) => {
+  const hay = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
+  const terms = q.split(/\\s+/).filter(Boolean);
+  return terms.every(term => hay.includes(term)) &&
+    (!location || String(j.location || '').toLowerCase().includes(location)) &&
+    (!remoteOnly || isRemote(j)) && (!visaOnly || hasVisaSponsorship(j));
+};
 async function allJobs() { return [...nativeJobs(), ...(await loadExternal())]; }
 async function findJob(id) { return (await allJobs()).find(j => j.id === id); }
-const short = j => ({ ...j, description: j.description.slice(0, 400) });
+const short = j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j), description: j.description.slice(0, 400) });
 
 app.get('/api/jobs', auth, wrap(async (req, res) => {
   const q = String(req.query.q || '').toLowerCase().trim().slice(0, 120);
   const location = String(req.query.location || '').toLowerCase().trim().slice(0, 80);
-  const matches = j => {
-    const searchable = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
-    return (!q || searchable.includes(q)) && (!location || String(j.location || '').toLowerCase().includes(location));
-  };
+  const remoteOnly = req.query.remote === '1';
+  const visaOnly = req.query.visa === '1';
+  const matches = j => searchMatch(j, q, location, remoteOnly, visaOnly);
   const nat = nativeJobs().filter(matches), all = await loadExternal();
   // Keep the external feed crypto-focused even when a broad search term is supplied.
   const ex = all.filter(j => isCrypto(j) && matches(j));
   const jobs = [...nat, ...ex];
   res.json({ jobs: jobs.slice(0, 60).map(short), total: jobs.length,
-    filters: { query: q, location },
+    filters: { query: q, location, remote: remoteOnly, visaSponsorship: visaOnly },
     source: 'CareerPilot direct postings + crypto-filtered RemoteOK listings; external links go to the original listing' });
 }));
 app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req, res) => {
@@ -494,11 +502,9 @@ app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req
   const profile = jparse(req.user.profile_json, {});
   const q = String(req.body.q || '').toLowerCase().trim().slice(0, 120);
   const location = String(req.body.location || '').toLowerCase().trim().slice(0, 80);
-  const pool = (await allJobs()).filter(j => {
-    const searchable = [j.title, j.company, j.location, ...(j.tags || []), j.description].join(' ').toLowerCase();
-    return (j.native || isCrypto(j)) && (!q || searchable.includes(q)) &&
-      (!location || String(j.location || '').toLowerCase().includes(location));
-  });
+  const remoteOnly = req.body.remote === true;
+  const visaOnly = req.body.visa === true;
+  const pool = (await allJobs()).filter(j => (j.native || isCrypto(j)) && searchMatch(j, q, location, remoteOnly, visaOnly));
   const cand = pool.map(j => ({ j, k: keywordScore(profile, j) })).sort((a, b) => b.k - a.k).slice(0, 15);
   let scored = cand.map(c => ({ ...short(c.j), score: c.k, reason: 'Skill keyword overlap' }));
   const rated = parseJson(await ai('You rate job fit for a candidate. Reply JSON only: array of {"id":string,"score":0-100,"reason":string (max 18 words)}. Be strict, do not inflate. Judge only skills and experience.' + DATA_NOTE,
