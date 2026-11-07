@@ -334,7 +334,7 @@ async function viewJobs() {
     const j = await api('/jobs?' + params.toString()).catch(e => (toast(e.message), { jobs: [] }));
     $('#jMeta').textContent = j.jobs.length ? `${j.total} listings · ${j.source}` : ''; $('#jList').innerHTML = j.jobs.map(jobCard).join('') || '<div class="text-sm text-gray-500">No listings found (a job source may be unreachable).</div>'; wireJobs(); };
   $('#jMatch').onclick = async () => { $('#jList').innerHTML = '<div class="text-sm text-gray-500">Scoring against your CV…</div>';
-    try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
+    try { const j = await api('/jobs/match', { method: 'POST', json: { q: $('#jq').value, location: $('#jl').value } }); $('#jMeta').textContent = 'Scored by: ' + j.scoredBy; $('#jList').innerHTML = j.matches.map(jobCard).join('') || '<div class="text-sm text-gray-500">No matches.</div>'; wireJobs(); }
     catch (e) { toast(e.message); $('#jList').innerHTML = ''; } };
 }
 
