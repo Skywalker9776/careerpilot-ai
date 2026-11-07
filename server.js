@@ -14,6 +14,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const Database = require('better-sqlite3');
+const { filterRadarJobs, buildRadarSummary } = require('./radar');
 let nodemailer = null; try { nodemailer = require('nodemailer'); } catch {}
 
 const E = process.env;
@@ -498,12 +499,31 @@ app.get('/api/jobs', auth, wrap(async (req, res) => {
     source: 'CareerPilot direct postings + crypto-filtered RemoteOK listings; external links go to the original listing' });
 }));
 app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, res) => {
-  const jobs = (await allJobs()).filter(j => j.native || isCrypto(j));
+  const jobs = (await allJobs()).filter(j => j.native || isCrypto(j)).map(j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j) }));
   const rules = [['Solidity', /\bsolidity\b/i], ['Rust', /\brust\b/i], ['Smart contracts', /smart contract/i], ['DeFi', /\bdefi\b|decentralized finance/i], ['Trading', /trading|market making|quant/i], ['Security', /security|audit/i], ['Blockchain engineering', /blockchain|protocol engineer/i], ['Python', /\bpython\b/i], ['TypeScript', /typescript/i], ['Zero knowledge', /zero.?knowledge|\bzk\b/i], ['DevOps', /devops|kubernetes/i], ['Data analytics', /analytics|data engineer|dune/i]];
   const hay = j => [j.title,j.company,j.location,...(j.tags||[]),j.description].join(' ');
   const topSkills = rules.map(([skill,re])=>({skill,count:jobs.filter(j=>re.test(hay(j))).length})).filter(x=>x.count).sort((a,b)=>b.count-a.count).slice(0,8);
   const dates=jobs.map(j=>Date.parse(j.date||'')).filter(Number.isFinite);
-  res.json({generatedAt:new Date().toISOString(),sampleSize:jobs.length,companies:new Set(jobs.map(j=>String(j.company||'').toLowerCase()).filter(Boolean)).size,directListings:jobs.filter(j=>j.native).length,remoteListings:jobs.filter(isRemote).length,explicitlySponsoredListings:jobs.filter(hasVisaSponsorship).length,postedLast24Hours:dates.filter(t=>t>=Date.now()-86400000).length,topSkills,confidence:jobs.length>=30?'broader sample':jobs.length>=10?'limited sample':'small sample',methodology:'Computed from current listing text. Skill mentions are not growth rates; visa support is counted only when explicitly stated.',feedAgeMinutes:ext.at?Math.max(0,Math.round((Date.now()-ext.at)/60000)):null});
+  const summary = buildRadarSummary(jobs);
+  res.json({generatedAt:new Date().toISOString(),...summary,topSkills,duplicateCount:Math.max(0,(await allJobs()).filter(j=>j.native||isCrypto(j)).length-summary.sampleSize),methodology:'Computed from current listing text. Role family, seniority and employment type are inferred from listing wording. Skill mentions are not growth rates; salary filters only include listings with numeric salary fields; visa support is counted only when explicitly stated.',feedAgeMinutes:ext.at?Math.max(0,Math.round((Date.now()-ext.at)/60000)):null});
+}));
+app.get('/api/radar/search', auth, rateLimit(30, 600), wrap(async (req, res) => {
+  const sourceJobs = (await allJobs()).filter(j => j.native || isCrypto(j)).map(j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j) }));
+  const result = filterRadarJobs(sourceJobs, {
+    q: req.query.q, location: req.query.location, remote: req.query.remote, visa: req.query.visa,
+    role: req.query.role, level: req.query.level, type: req.query.type,
+    minSalary: req.query.minSalary, maxSalary: req.query.maxSalary,
+    postedWithinDays: req.query.postedWithinDays
+  });
+  res.json({
+    jobs: result.jobs.slice(0, 60).map(short), total: result.jobs.length,
+    totalBeforeFilters: result.totalBeforeFilters, duplicateCount: result.duplicateCount,
+    filters: { q: req.query.q || '', location: req.query.location || '', role: req.query.role || '',
+      level: req.query.level || '', type: req.query.type || '', remote: req.query.remote === '1',
+      visa: req.query.visa === '1', minSalary: Number(req.query.minSalary) || 0,
+      maxSalary: Number(req.query.maxSalary) || 0, postedWithinDays: Number(req.query.postedWithinDays) || 0 },
+    source: 'CareerPilot direct postings + crypto-filtered RemoteOK listings; original listing links are retained.'
+  });
 }));
 app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req, res) => {
   if (!req.user.profile_json) throw fail(400, 'Upload your CV first.');
@@ -512,7 +532,7 @@ app.post('/api/jobs/match', auth, candidate, rateLimit(20, 600), wrap(async (req
   const location = String(req.body.location || '').toLowerCase().trim().slice(0, 80);
   const remoteOnly = req.body.remote === true;
   const visaOnly = req.body.visa === true;
-  const pool = (await allJobs()).filter(j => (j.native || isCrypto(j)) && searchMatch(j, q, location, remoteOnly, visaOnly));
+  const pool = filterRadarJobs((await allJobs()).filter(j => j.native || isCrypto(j)).map(j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j) })), { ...req.body, q, location, remote: remoteOnly, visa: visaOnly }).jobs;
   const cand = pool.map(j => ({ j, k: keywordScore(profile, j) })).sort((a, b) => b.k - a.k).slice(0, 15);
   let scored = cand.map(c => ({ ...short(c.j), score: c.k, reason: 'Skill keyword overlap' }));
   const rated = parseJson(await ai('You rate job fit for a candidate. Reply JSON only: array of {"id":string,"score":0-100,"reason":string (max 18 words)}. Be strict, do not inflate. Judge only skills and experience.' + DATA_NOTE,
