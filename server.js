@@ -371,8 +371,8 @@ async function aiRaw(body) {
   if (!AI_KEY && ALT_KEY) {
     // Try the main model, then fallbacks, when the provider is busy (429/5xx), the model is gone (404) or the call times out.
     let last;
-    for (const model of ALT_MODELS) {
-      try { return await callCompat({ base: ALT_BASE, key: ALT_KEY, model, body }); }
+    for (const [i, model] of ALT_MODELS.entries()) {
+      try { return await callCompat({ base: ALT_BASE, key: ALT_KEY, model, body, timeoutMs: i < ALT_MODELS.length - 1 ? 25000 : 60000 }); }
       catch (e) {
         last = e; const st = e.httpStatus;
         console.error('AI model', model, 'failed:', String(e.message).split('\n')[0].slice(0, 160));
@@ -921,7 +921,7 @@ app.listen(PORT, () => console.log(`CareerPilot AI running on http://localhost:$
 // One-time AI self-test at startup (free-tier cost: a few tiny requests per deploy). Results go to the deploy log only.
 if (!AI_KEY && ALT_KEY && !E.AI_SELFTEST_OFF) setTimeout(async () => {
   const tool = [{ name: 'ping', description: 'test', input_schema: { type: 'object', properties: {} } }];
-  for (const model of ALT_MODELS) for (const [label, extra] of [['plain', {}], ['tools', { tools: tool }]]) {
+  for (const model of ALT_MODELS.slice(0, 1)) for (const [label, extra] of [['plain', {}], ['tools', { tools: tool }]]) {
     try { await callCompat({ base: ALT_BASE, key: ALT_KEY, model, body: { max_tokens: 20, system: 'Reply with OK.', messages: [{ role: 'user', content: 'ping' }], ...extra } }); console.log('AI self-test', model, label, 'OK'); }
     catch (e) { console.error('AI self-test', model, label, 'FAILED', String(e.message).slice(0, 420)); }
   }
