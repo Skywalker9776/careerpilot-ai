@@ -1,0 +1,45 @@
+name: Radar Intelligence checks
+
+on:
+  push:
+    branches:
+      - upgrade/radar-intelligence-2
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "server.js"
+      - "public/index.html"
+      - "radar.js"
+      - "radar.test.js"
+      - "package.json"
+      - ".github/workflows/radar-intelligence.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check backend and Radar module syntax
+        run: |
+          node --check server.js
+          node --check radar.js
+      - name: Run Radar unit tests
+        run: npm run test:radar
+      - name: Check inline browser JavaScript syntax
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('public/index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)]
+            .map(match => match[1]).filter(source => source.trim());
+          if (!scripts.length) throw new Error('No inline scripts found');
+          scripts.forEach((source, index) => {
+            try { new Function(source); }
+            catch (error) { throw new Error('Inline script ' + (index + 1) + ': ' + error.message); }
+          });
+          console.log('Checked ' + scripts.length + ' inline script(s).');
+          NODE
