@@ -162,7 +162,8 @@ ${row(P.featured.name, P.featured, `One listing live for ${cfg.listingDays} days
 <tr><td>BNB Smart Chain (BEP-20)</td><td><code>${esc(cfg.merchant.bnb || 'not configured')}</code></td></tr>
 <tr><td>Internet Computer (ICP account ID)</td><td><code>${esc(cfg.merchant.icp || 'not configured')}</code></td></tr>
 </table>
-<p>Send only the listed asset on the listed network. After sending, paste the transaction hash into the Billing tab so the payment can be verified. Never pay anyone who contacts you privately claiming to be CareerPilot, and never share your seed phrase.</p>
+<p>Send only the listed asset on the listed network. After sending, paste the transaction hash into the Billing tab. Choose <b>Verify automatically</b> for on-chain verification, or <b>Submit for Founder review</b> if you need manual review. A manual submission remains pending and does not activate a plan or listing credit until the Founder approves it after checking the transaction on the relevant block explorer. Keep your transaction hash and do not submit it more than once.</p>
+<p>Never pay anyone who contacts you privately claiming to be CareerPilot. The only official deposit addresses are the ones displayed inside your signed-in CareerPilot account and on this Fees page. Never share your seed phrase or private key.</p>
 
 <h2>Referral commission</h2>
 <p>${esc(cfg.refPercent)}% of each verified payment made by someone you referred, paid out manually to your payout wallet. See <a href="/terms">Terms</a>.</p>
