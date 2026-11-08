@@ -114,7 +114,7 @@ function terms(cfg) {
 <ul>
 <li>Fees are listed on the <a href="/fees">Fees page</a> and are paid in crypto on BNB Smart Chain (BEP-20 network) or the Internet Computer (ICP) to the addresses shown there.</li>
 <li>Blockchain payments are irreversible. Send the exact network and asset to the exact address shown; funds sent to the wrong address or network usually cannot be recovered. You also pay the network's gas fee.</li>
-<li>A payment is credited after we verify the transaction on-chain. Each transaction can be used only once.</li>
+<li>A payment is credited only after automatic on-chain verification or manual Founder review of the transaction. Manual submissions stay pending until approved and may take time; submission does not guarantee approval. Each transaction can be used only once.</li>
 <li>Subscriptions last 30 days and do not renew automatically. Listing fees buy one listing of 30 days.</li>
 <li>Payments are non-refundable, except where we made an error or the law requires otherwise. If something goes wrong, contact us with your transaction hash.</li>
 </ul>
