@@ -100,6 +100,7 @@ function terms(cfg) {
 <h2>3. Acceptable use</h2>
 <ul>
 <li>No scams. Jobs must be real, and must never ask candidates for payments, deposits, private keys, seed phrases or wallet access.</li>
+<li>No scams. Listings must never ask candidates for money, fees, deposits, crypto, seed phrases, private keys or wallet connections. CareerPilot runs an automatic Scam Shield check (pattern-based, not a guarantee) and rejects listings that trip its hard rules. Report suspicious listings to us (see Contact).</li>
 <li>No discrimination. Employers must make lawful, non-discriminatory hiring decisions. AI screening is decision support; a human must make every hiring decision.</li>
 <li>No scraping, mass-messaging, spam, fake reviews, malware, or attempts to break or overload the service.</li>
 <li>No impersonation, and no uploading other people's personal data without a right to do so.</li>
@@ -143,14 +144,14 @@ function fees(cfg) {
 
 <h2>Candidates</h2>
 <table><tr><th>Plan</th><th>BNB (BEP-20)</th><th>ICP</th></tr>
-<tr><td><b>Free</b><br><span class="mut">CV analysis, job matching and ${esc(cfg.freeDrafts)} AI application drafts in total</span></td><td>0</td><td>0</td></tr>
+<tr><td><b>Free</b><br><span class="mut">Always free: sign-up, login, job search, matching, CV analysis, applying, and ${esc(cfg.freeDrafts)} AI application drafts per day</span></td><td>0</td><td>0</td></tr>
 ${row(P.base.name, P.base, `${P.base.dailyDrafts} AI drafts per day for ${cfg.cycleDays} days`)}
 ${row(P.elite.name, P.elite, `${P.elite.dailyDrafts} AI drafts per day for ${cfg.cycleDays} days`)}
 </table>
 
 <h2>Employers (crypto job listings and premium services)</h2>
 <table><tr><th>Product</th><th>BNB (BEP-20)</th><th>ICP</th></tr>
-<tr><td><b>First ${esc(cfg.freeListings)} job listing${cfg.freeListings === 1 ? '' : 's'}</b><br><span class="mut">Free during the beta</span></td><td>0</td><td>0</td></tr>
+${cfg.freeListings > 0 ? `<tr><td><b>First ${esc(cfg.freeListings)} job listing${cfg.freeListings === 1 ? '' : 's'}</b><br><span class="mut">Free during the beta</span></td><td>0</td><td>0</td></tr>` : `<tr><td><b>Employer sign-up and login</b><br><span class="mut">Free. You pay only when you publish a listing.</span></td><td>0</td><td>0</td></tr>`}
 ${row(P.listing.name, P.listing, `One standard listing, live for ${cfg.listingDays} days, with blind AI screening of applicants`)}
 ${row(P.featured.name, P.featured, `One listing live for ${cfg.listingDays} days, shown first in job lists with a Featured badge`)}
 </table>

@@ -78,7 +78,7 @@
 
   <section id="pricing" class="max-w-4xl mx-auto px-4 py-12">
     <h2 class="font-display text-2xl font-bold text-center mb-2">Candidate pricing</h2>
-    <p class="text-center text-gray-500 text-sm mb-6">Free: 2 AI drafts. Paid plans run 30 days and are paid on-chain, no auto-renewal. Employers: the first <span id="empJobs">1</span> job listing is free during beta; further and Featured listings are paid per use (see <a href="/fees" class="underline">Fees</a>).</p>
+    <p class="text-center text-gray-500 text-sm mb-6"><b class="text-emerald-400">Sign-up and login are always free.</b> Free forever for job seekers: unlimited job search, matching, CV analysis and applications, plus <span id="freeDr">3</span> AI drafts a day. Optional paid plans add more AI drafts per day, paid on-chain for 30 days with no auto-renewal. <b>Employers and crypto institutions pay per job listing</b> (see <a href="/fees" class="underline">Fees</a>); every listing is checked by Scam Shield.</p>
     <div class="flex justify-center mb-8"><select id="landingAsset" class="inp !w-auto font-mono"><option value="bnb">Pay in BNB (BNB Smart Chain)</option><option value="icp">Pay in ICP</option></select></div>
     <div id="planCards" class="grid md:grid-cols-2 gap-6"></div>
   </section>
@@ -158,7 +158,7 @@ const rp = new URLSearchParams(location.search).get('ref'); if (rp) localStorage
 const REF = localStorage.getItem('cp_ref') || ''; if (REF) { $('#refBanner').classList.remove('hidden'); $('#refBannerCode').textContent = REF; }
 
 // pricing
-async function loadPricing() { PRICING = await api('/pricing'); $('#refPct').textContent = PRICING.referralPercent; $('#empJobs').textContent = PRICING.employerFreeJobs; renderPlans(); }
+async function loadPricing() { PRICING = await api('/pricing'); $('#refPct').textContent = PRICING.referralPercent; $('#freeDr').textContent = PRICING.freeDraftsPerDay || 3; renderPlans(); }
 function renderPlans() {
   const a = $('#landingAsset').value;
   const feats = { base: ['Up to 5 AI drafts per day', 'Autopilot (5/day cap)', 'AI CV analysis, gap & interview coaching'], elite: ['Up to 25 AI drafts per day', 'Autopilot (25/day cap)', 'Everything in Aether-Base'] };
@@ -315,8 +315,9 @@ function atsHtml(a) {
 function jobCard(j) {
   return `<div class="card !p-4"><div class="flex justify-between gap-3"><div><div class="font-semibold text-sm">${esc(j.title)} ${j.native ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Direct</span>' : ''}</div><div class="text-xs text-gray-500">${esc(j.company)} · ${esc(j.location)}${j.salary ? ' · ' + esc(j.salary) : ''}</div></div>
     ${j.score != null ? `<div class="font-display text-lg ${j.score >= 70 ? 'text-emerald-400' : j.score >= 40 ? 'text-amber-400' : 'text-gray-500'}">${j.score}</div>` : ''}</div>
-    <div class="flex flex-wrap gap-1.5 mt-2">${j.remote ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Remote</span>' : ''}${j.visaSponsorship ? '<span class="chip !bg-sky-500/15 !text-sky-300">Visa sponsorship stated</span>' : ''}</div>
+    <div class="flex flex-wrap gap-1.5 mt-2">${j.safety ? (j.safety.level === 'danger' ? '<span class="chip !bg-red-500/20 !text-red-300" title="' + esc(j.safety.flags.map(f => f.label).join('; ')) + '">⛔ Possible scam</span>' : j.safety.level === 'caution' ? '<span class="chip !bg-amber-500/20 !text-amber-300" title="' + esc(j.safety.flags.map(f => f.label).join('; ')) + '">⚠ Check carefully</span>' : '<span class="chip !bg-emerald-500/10 !text-emerald-300" title="Automatic check found no common scam patterns. Not a guarantee: never pay to apply or share a seed phrase.">🛡 Scam Shield: no red flags</span>') : ''}${j.remote ? '<span class="chip !bg-emerald-500/15 !text-emerald-300">Remote</span>' : ''}${j.visaSponsorship ? '<span class="chip !bg-sky-500/15 !text-sky-300">Visa sponsorship stated</span>' : ''}</div>
     <div class="flex flex-wrap gap-1.5 mt-2">${j.roleFamily ? '<span class="chip">'+esc(j.roleFamily)+'</span>' : ''}${j.seniority && j.seniority !== 'Not stated' ? '<span class="chip">'+esc(j.seniority)+'</span>' : ''}${j.employmentType && j.employmentType !== 'Not stated' ? '<span class="chip">'+esc(j.employmentType)+'</span>' : ''}</div>
+    ${j.safety && j.safety.level !== 'ok' ? `<div class="text-xs ${j.safety.level === 'danger' ? 'text-red-300' : 'text-amber-300'} mt-2">${j.safety.flags.map(f => esc(f.label)).join('<br>')}</div>` : ''}
     ${j.reason ? `<div class="text-xs text-gray-400 mt-2">${esc(j.reason)}</div>` : ''}
     <div class="flex flex-wrap gap-1.5 mt-2">${(j.tags || []).slice(0, 5).map(t => `<span class="text-[10px] bg-gray-900 rounded px-2 py-0.5 text-gray-400">${esc(t)}</span>`).join('')}</div>
     <div class="flex flex-wrap gap-2 mt-3"><button data-draft="${esc(j.id)}" class="btn2 !border-purple-500/40 !text-purple-300">Draft application</button>

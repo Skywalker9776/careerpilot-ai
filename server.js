@@ -15,6 +15,7 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const Database = require('better-sqlite3');
 const { filterRadarJobs, buildRadarSummary } = require('./radar');
+const { scanJob } = require('./scamshield');
 let nodemailer = null; try { nodemailer = require('nodemailer'); } catch {}
 
 const E = process.env;
@@ -42,7 +43,7 @@ const MIN_CONF = Number(E.BNB_MIN_CONFIRMATIONS || 3);
 const REF_PERCENT = Number(E.REFERRAL_PERCENT || 10);
 const JOB_SOURCE = E.JOB_SOURCE_URL || 'https://remoteok.com/api';
 const AP_MINUTES = Number(E.AUTOPILOT_INTERVAL_MIN || 60);
-const EMPLOYER_FREE_JOBS = Number(E.EMPLOYER_FREE_JOBS || 1); // free job listings per employer (lifetime, beta)
+const EMPLOYER_FREE_JOBS = Number(E.EMPLOYER_FREE_JOBS === undefined || E.EMPLOYER_FREE_JOBS === '' ? 0 : E.EMPLOYER_FREE_JOBS); // free listings per employer (default 0: employers pay per listing)
 const LISTING_DAYS = 30, MAX_OPEN_JOBS = 25;
 const SMTP_URL = E.SMTP_URL || '';
 const SMTP_FROM = E.SMTP_FROM || '';
@@ -57,7 +58,7 @@ const PRODUCTS = {
   listing:  { name: 'Job listing',     bnb: E.PRICE_LISTING_BNB  || '0.02', icp: E.PRICE_LISTING_ICP  || '2', kind: 'listing' },
   featured: { name: 'Featured listing', bnb: E.PRICE_FEATURED_BNB || '0.04', icp: E.PRICE_FEATURED_ICP || '4', kind: 'featured' },
 };
-const FREE_DRAFTS_TOTAL = 2, CYCLE_DAYS = 30;
+const FREE_DRAFTS_PER_DAY = Number(E.FREE_DRAFTS_PER_DAY || 3), CYCLE_DAYS = 30; // candidates: sign-up, login, search, matching, CV analysis and applying are always free
 const GOOGLE_CLIENT_ID = E.GOOGLE_CLIENT_ID || '';
 const GOOGLE_TOKENINFO = E.GOOGLE_TOKENINFO_URL || 'https://oauth2.googleapis.com/tokeninfo';
 const CONTACT_EMAIL = E.CONTACT_EMAIL || '';
@@ -363,7 +364,7 @@ app.get('/api/wallet', auth, (req, res) => {
 });
 
 // ---------- legal pages ----------
-const legalCfg = () => ({ products: PRODUCTS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP }, refPercent: REF_PERCENT, freeListings: EMPLOYER_FREE_JOBS, freeDrafts: FREE_DRAFTS_TOTAL, cycleDays: CYCLE_DAYS, listingDays: LISTING_DAYS, contactEmail: CONTACT_EMAIL, contactX: CONTACT_X });
+const legalCfg = () => ({ products: PRODUCTS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP }, refPercent: REF_PERCENT, freeListings: EMPLOYER_FREE_JOBS, freeDrafts: FREE_DRAFTS_PER_DAY, cycleDays: CYCLE_DAYS, listingDays: LISTING_DAYS, contactEmail: CONTACT_EMAIL, contactX: CONTACT_X });
 ['privacy', 'terms', 'fees'].forEach(p => app.get('/' + p, (req, res) => res.type('html').send(legal[p](legalCfg()))));
 
 // ---------- AI ----------
@@ -493,7 +494,7 @@ const searchMatch = (j, q, location, remoteOnly, visaOnly) => {
 };
 async function allJobs() { return [...nativeJobs(), ...(await loadExternal())]; }
 async function findJob(id) { return (await allJobs()).find(j => j.id === id); }
-const short = j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j), description: j.description.slice(0, 400) });
+const short = j => ({ ...j, safety: scanJob(j), remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j), description: j.description.slice(0, 400) });
 
 app.get('/api/jobs', auth, wrap(async (req, res) => {
   const q = String(req.query.q || '').toLowerCase().trim().slice(0, 120);
@@ -573,7 +574,7 @@ app.post('/api/jobs/:id/insights', auth, candidate, rateLimit(20, 600), wrap(asy
 function draftAllowance(u) {
   const p = activePlan(u);
   if (isFounder(u)) return 1000;
-  if (p === 'free') return Math.max(0, FREE_DRAFTS_TOTAL - db.prepare('SELECT COUNT(*) c FROM applications WHERE user_id=?').get(u.id).c);
+  if (p === 'free') return Math.max(0, FREE_DRAFTS_PER_DAY - db.prepare('SELECT COUNT(*) c FROM applications WHERE user_id=? AND created_at>?').get(u.id, now() - 86400).c);
   return Math.max(0, PLANS[p].dailyDrafts - db.prepare('SELECT COUNT(*) c FROM applications WHERE user_id=? AND created_at>?').get(u.id, now() - 86400).c);
 }
 async function draftFor(u, jobId) {
@@ -701,12 +702,14 @@ app.post('/api/employer/jobs', auth, employer, wrap(async (req, res) => {
   const title = String(req.body.title || '').trim().slice(0, 100), description = String(req.body.description || '').trim().slice(0, 6000);
   if (!title || description.length < 40) throw fail(400, 'Add a title and a description (40+ characters).');
   if (db.prepare("SELECT COUNT(*) c FROM posted_jobs WHERE employer_id=? AND status='open'").get(req.user.id).c >= (isFounder(req.user) ? 200 : MAX_OPEN_JOBS)) throw fail(400, `You can have up to ${MAX_OPEN_JOBS} open jobs. Close one first.`);
+  const shield = scanJob({ title, description, tags: String(req.body.tags || '').split(',') });
+  if (shield.level === 'danger') throw fail(400, 'This listing cannot be posted: ' + shield.flags.filter(f => f.level === 'danger').map(f => f.label).join('; ') + '. CareerPilot listings must never ask candidates for money, seed phrases or wallet connections.');
   const featured = req.body.featured ? 1 : 0, u = userById(req.user.id), founder = isFounder(u);
   const everPosted = db.prepare('SELECT COUNT(*) c FROM posted_jobs WHERE employer_id=?').get(u.id).c;
   let credit = null;
   if (founder) credit = null;
   else if (featured) { if (!(u.featured_credits > 0)) throw fail(402, 'A Featured listing needs a Featured credit. Buy one in Billing (see Fees).'); credit = 'featured_credits'; }
-  else if (everPosted >= EMPLOYER_FREE_JOBS) { if (!(u.listing_credits > 0)) throw fail(402, 'Your free listing is used. Buy a listing credit in Billing (see Fees).'); credit = 'listing_credits'; }
+  else if (everPosted >= EMPLOYER_FREE_JOBS) { if (!(u.listing_credits > 0)) throw fail(402, 'Posting a job needs a listing credit. Buy one in Billing (see Fees). Signing up and applying stay free for candidates.'); credit = 'listing_credits'; }
   const tags = String(req.body.tags || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 10);
   const info = db.transaction(() => {
     if (credit) db.prepare(`UPDATE users SET ${credit}=${credit}-1 WHERE id=?`).run(u.id);
@@ -844,7 +847,7 @@ app.post('/api/agent', auth, rateLimit(30, 600), wrap(async (req, res) => {
 
 // ---------- payments ----------
 app.get('/api/pricing', (req, res) => res.json({ plans: PLANS, products: PRODUCTS, freeListings: EMPLOYER_FREE_JOBS, listingDays: LISTING_DAYS, cycleDays: CYCLE_DAYS, merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
-  configured: { bnb: !!MERCHANT_BNB, icp: !!MERCHANT_ICP, ai: AI_ON, aiProvider: AI_PROVIDER, email: !!(SMTP_URL && nodemailer) }, referralPercent: REF_PERCENT, employerFreeJobs: EMPLOYER_FREE_JOBS }));
+  configured: { bnb: !!MERCHANT_BNB, icp: !!MERCHANT_ICP, ai: AI_ON, aiProvider: AI_PROVIDER, email: !!(SMTP_URL && nodemailer) }, referralPercent: REF_PERCENT, freeDraftsPerDay: FREE_DRAFTS_PER_DAY, employerFreeJobs: EMPLOYER_FREE_JOBS }));
 const toUnits = (s, d) => { const [a, b = ''] = String(s).split('.'); return BigInt(a) * 10n ** BigInt(d) + BigInt((b + '0'.repeat(d)).slice(0, d)); };
 async function rpc(method, params) {
   const j = await (await fetch(BSC_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json();
