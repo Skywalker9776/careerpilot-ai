@@ -85,6 +85,11 @@ CREATE TABLE IF NOT EXISTS applications(
 CREATE TABLE IF NOT EXISTS payments(
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, chain TEXT NOT NULL,
   tx_hash TEXT UNIQUE NOT NULL, plan TEXT NOT NULL, amount TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS payment_submissions(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, chain TEXT NOT NULL,
+  tx_hash TEXT UNIQUE NOT NULL, product TEXT NOT NULL, amount TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', created_at INTEGER NOT NULL,
+  reviewed_at INTEGER DEFAULT 0, reviewed_by INTEGER DEFAULT 0, review_note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS referral_earnings(
   id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, referred_id INTEGER NOT NULL,
   payment_id INTEGER NOT NULL, amount TEXT NOT NULL, asset TEXT NOT NULL, status TEXT DEFAULT 'pending',
@@ -358,6 +363,7 @@ app.get('/api/wallet', auth, (req, res) => {
     payoutWallet: u.payout_wallet, credits: { listing: u.listing_credits || 0, featured: u.featured_credits || 0 },
     plan: activePlan(u), planExpires: isFounder(u) ? now() + 10 * 365 * 86400 : activePlan(u) === 'free' ? 0 : u.plan_expires, founder: isFounder(u),
     payments: db.prepare('SELECT chain, tx_hash, plan, amount, created_at FROM payments WHERE user_id=? ORDER BY id DESC LIMIT 50').all(u.id),
+    paymentSubmissions: db.prepare('SELECT id, chain, tx_hash, product, amount, status, created_at, reviewed_at, review_note FROM payment_submissions WHERE user_id=? ORDER BY id DESC LIMIT 30').all(u.id),
     referralEarnings: db.prepare('SELECT amount, asset, status, created_at FROM referral_earnings WHERE referrer_id=? ORDER BY id DESC LIMIT 50').all(u.id),
     merchant: { bnb: MERCHANT_BNB, icp: MERCHANT_ICP },
   });
@@ -880,6 +886,26 @@ async function verifyIcp(h, plan) {
     throw new Error(`No transfer of at least ${PLANS[plan].icp} ICP to the CareerPilot account found in that transaction.`);
   return { amount: PLANS[plan].icp, asset: 'ICP' };
 }
+app.post('/api/payments/manual', auth, rateLimit(8, 600), wrap(async (req, res) => {
+  const chain = String(req.body.chain || '').toUpperCase();
+  const product = String(req.body.product || '');
+  const hash = String(req.body.txHash || '').trim();
+  if (!PRODUCTS[product]) throw fail(400, 'Unknown product.');
+  if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Choose BNB or ICP.');
+  if (chain === 'BNB' ? !/^0x[0-9a-fA-F]{64}$/.test(hash) : !/^[0-9a-fA-F]{64}$/.test(hash))
+    throw fail(400, chain === 'BNB' ? 'Enter a valid BNB Smart Chain transaction hash.' : 'Enter a valid ICP transaction hash (64 hex characters).');
+  const key = hash.toLowerCase();
+  if (db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(key) || db.prepare('SELECT 1 FROM payment_submissions WHERE tx_hash=?').get(key))
+    throw fail(409, 'This transaction hash has already been submitted or credited.');
+  const amount = chain === 'BNB' ? PRODUCTS[product].bnb : PRODUCTS[product].icp;
+  const result = db.prepare('INSERT INTO payment_submissions(user_id,chain,tx_hash,product,amount,created_at) VALUES(?,?,?,?,?,?)')
+    .run(req.user.id, chain, key, product, amount, now());
+  audit(req.user.id, 'manual_payment_submitted', product + ' / ' + chain);
+  res.json({ ok: true, id: result.lastInsertRowid, status: 'pending', message: 'Submitted for Founder review. Your service is not activated until approval.' });
+}));
+app.get('/api/payments/submissions', auth, (req, res) => res.json({
+  submissions: db.prepare('SELECT id, chain, tx_hash, product, amount, status, created_at, reviewed_at, review_note FROM payment_submissions WHERE user_id=? ORDER BY id DESC LIMIT 30').all(req.user.id)
+}));
 app.post('/api/payments/verify', auth, rateLimit(15, 600), wrap(async (req, res) => {
   const chain = String(req.body.chain || '').toUpperCase(), plan = String(req.body.plan || ''), hash = String(req.body.txHash || '').trim();
   if (!PRODUCTS[plan]) throw fail(400, 'Unknown product.'); if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Unknown chain.');
@@ -904,6 +930,50 @@ app.get('/api/referrals', auth, (req, res) => {
   rows.forEach(r => { const k = r.asset + ':' + r.status; totals[k] = (totals[k] || 0) + Number(r.amount); });
   res.json({ refCode: req.user.ref_code, percent: REF_PERCENT, signups: db.prepare('SELECT COUNT(*) c FROM users WHERE referred_by=?').get(req.user.id).c, earnings: rows, totals });
 });
+// Founder review queue for manual BNB / ICP payment submissions. Approval is an explicit human action.
+app.get('/api/admin/manual-payments', auth, adminOnly, (req, res) => res.json({
+  submissions: db.prepare(`SELECT p.id, p.user_id, p.chain, p.tx_hash, p.product, p.amount, p.status, p.created_at,
+    p.review_note, u.email, u.company_name, u.role
+    FROM payment_submissions p JOIN users u ON u.id=p.user_id
+    ORDER BY CASE p.status WHEN 'pending' THEN 0 ELSE 1 END, p.created_at DESC LIMIT 100`).all()
+}));
+app.post('/api/admin/manual-payments/:id/review', auth, adminOnly, wrap(async (req, res) => {
+  const id = Number(req.params.id), decision = String(req.body.decision || '');
+  const note = String(req.body.note || '').trim().slice(0, 500);
+  if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject'].includes(decision)) throw fail(400, 'Invalid review request.');
+  const sub = db.prepare('SELECT * FROM payment_submissions WHERE id=?').get(id);
+  if (!sub) throw fail(404, 'Payment submission not found.');
+  if (sub.status !== 'pending') throw fail(409, 'This submission has already been reviewed.');
+  if (decision === 'reject') {
+    db.prepare("UPDATE payment_submissions SET status='rejected', reviewed_at=?, reviewed_by=?, review_note=? WHERE id=? AND status='pending'")
+      .run(now(), req.user.id, note || 'Not approved. Contact support if you believe this is an error.', id);
+    audit(req.user.id, 'manual_payment_rejected', 'submission ' + id);
+    audit(sub.user_id, 'manual_payment_rejected', sub.product);
+    return res.json({ ok: true, status: 'rejected' });
+  }
+  if (db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(sub.tx_hash)) throw fail(409, 'This transaction hash has already been credited.');
+  const product = PRODUCTS[sub.product];
+  if (!product) throw fail(400, 'The submitted product is no longer configured.');
+  const u = userById(sub.user_id);
+  if (!u) throw fail(404, 'The submitting account no longer exists.');
+  const base = Math.max(now(), activePlan(u) !== 'free' ? u.plan_expires : 0);
+  const expires = base + CYCLE_DAYS * 86400;
+  db.transaction(() => {
+    const p = db.prepare('INSERT INTO payments(user_id,chain,tx_hash,plan,amount,created_at) VALUES(?,?,?,?,?,?)')
+      .run(sub.user_id, sub.chain, sub.tx_hash, sub.product, sub.amount, now());
+    if (product.kind === 'listing') db.prepare('UPDATE users SET listing_credits=listing_credits+1 WHERE id=?').run(sub.user_id);
+    else if (product.kind === 'featured') db.prepare('UPDATE users SET featured_credits=featured_credits+1 WHERE id=?').run(sub.user_id);
+    else db.prepare('UPDATE users SET plan=?, plan_expires=? WHERE id=?').run(sub.product, expires, sub.user_id);
+    if (u.referred_by) db.prepare('INSERT INTO referral_earnings(referrer_id,referred_id,payment_id,amount,asset,created_at) VALUES(?,?,?,?,?,?)')
+      .run(u.referred_by, u.id, p.lastInsertRowid, (Number(sub.amount) * REF_PERCENT / 100).toFixed(sub.chain === 'BNB' ? 6 : 4), sub.chain, now());
+    db.prepare("UPDATE payment_submissions SET status='approved', reviewed_at=?, reviewed_by=?, review_note=? WHERE id=? AND status='pending'")
+      .run(now(), req.user.id, note || 'Payment checked and approved by Founder.', id);
+  })();
+  audit(req.user.id, 'manual_payment_approved', 'submission ' + id);
+  audit(sub.user_id, 'manual_payment_approved', sub.product);
+  res.json({ ok: true, status: 'approved', credits: { listing: userById(sub.user_id).listing_credits, featured: userById(sub.user_id).featured_credits } });
+}));
+ 
 // Admin-only database backup (consistent snapshot via SQLite backup API). File contains personal data.
 app.get('/api/admin/backup', auth, adminOnly, async (req, res) => {
   const tmp = path.join(DATA_DIR, 'backup-' + Date.now() + '.tmp.db');

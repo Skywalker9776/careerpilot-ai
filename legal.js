@@ -114,7 +114,7 @@ function terms(cfg) {
 <ul>
 <li>Fees are listed on the <a href="/fees">Fees page</a> and are paid in crypto on BNB Smart Chain (BEP-20 network) or the Internet Computer (ICP) to the addresses shown there.</li>
 <li>Blockchain payments are irreversible. Send the exact network and asset to the exact address shown; funds sent to the wrong address or network usually cannot be recovered. You also pay the network's gas fee.</li>
-<li>A payment is credited after we verify the transaction on-chain. Each transaction can be used only once.</li>
+<li>A payment is credited only after automatic on-chain verification or manual Founder review of the transaction. Manual submissions stay pending until approved and may take time; submission does not guarantee approval. Each transaction can be used only once.</li>
 <li>Subscriptions last 30 days and do not renew automatically. Listing fees buy one listing of 30 days.</li>
 <li>Payments are non-refundable, except where we made an error or the law requires otherwise. If something goes wrong, contact us with your transaction hash.</li>
 </ul>
@@ -162,7 +162,8 @@ ${row(P.featured.name, P.featured, `One listing live for ${cfg.listingDays} days
 <tr><td>BNB Smart Chain (BEP-20)</td><td><code>${esc(cfg.merchant.bnb || 'not configured')}</code></td></tr>
 <tr><td>Internet Computer (ICP account ID)</td><td><code>${esc(cfg.merchant.icp || 'not configured')}</code></td></tr>
 </table>
-<p>Send only the listed asset on the listed network. After sending, paste the transaction hash into the Billing tab so the payment can be verified. Never pay anyone who contacts you privately claiming to be CareerPilot, and never share your seed phrase.</p>
+<p>Send only the listed asset on the listed network. After sending, paste the transaction hash into the Billing tab. Choose <b>Verify automatically</b> for on-chain verification, or <b>Submit for Founder review</b> if you need manual review. A manual submission remains pending and does not activate a plan or listing credit until the Founder approves it after checking the transaction on the relevant block explorer. Keep your transaction hash and do not submit it more than once.</p>
+<p>Never pay anyone who contacts you privately claiming to be CareerPilot. The only official deposit addresses are the ones displayed inside your signed-in CareerPilot account and on this Fees page. Never share your seed phrase or private key.</p>
 
 <h2>Referral commission</h2>
 <p>${esc(cfg.refPercent)}% of each verified payment made by someone you referred, paid out manually to your payout wallet. See <a href="/terms">Terms</a>.</p>
