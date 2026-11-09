@@ -85,6 +85,10 @@ CREATE TABLE IF NOT EXISTS applications(
 CREATE TABLE IF NOT EXISTS payments(
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, chain TEXT NOT NULL,
   tx_hash TEXT UNIQUE NOT NULL, plan TEXT NOT NULL, amount TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS manual_payments(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, plan TEXT NOT NULL, chain TEXT NOT NULL,
+  tx_ref TEXT DEFAULT '', note TEXT DEFAULT '', status TEXT DEFAULT 'pending', review_note TEXT DEFAULT '',
+  created_at INTEGER NOT NULL, reviewed_at INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS referral_earnings(
   id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_id INTEGER NOT NULL, referred_id INTEGER NOT NULL,
   payment_id INTEGER NOT NULL, amount TEXT NOT NULL, asset TEXT NOT NULL, status TEXT DEFAULT 'pending',
@@ -880,24 +884,59 @@ async function verifyIcp(h, plan) {
     throw new Error(`No transfer of at least ${PLANS[plan].icp} ICP to the CareerPilot account found in that transaction.`);
   return { amount: PLANS[plan].icp, asset: 'ICP' };
 }
+// Grants a paid product (plan, listing credit or featured credit) and records the payment + referral. Used by on-chain verification and by manual approval.
+function grantPurchase(u, plan, chain, txKey, amount, asset) {
+  const base = Math.max(now(), activePlan(u) !== 'free' ? u.plan_expires : 0), expires = base + CYCLE_DAYS * 86400;
+  db.transaction(() => {
+    const p = db.prepare('INSERT INTO payments(user_id,chain,tx_hash,plan,amount,created_at) VALUES(?,?,?,?,?,?)').run(u.id, chain, txKey, plan, amount, now());
+    if (PRODUCTS[plan].kind === 'listing') db.prepare('UPDATE users SET listing_credits=listing_credits+1 WHERE id=?').run(u.id);
+    else if (PRODUCTS[plan].kind === 'featured') db.prepare('UPDATE users SET featured_credits=featured_credits+1 WHERE id=?').run(u.id);
+    else db.prepare('UPDATE users SET plan=?, plan_expires=? WHERE id=?').run(plan, expires, u.id);
+    if (u.referred_by) db.prepare('INSERT INTO referral_earnings(referrer_id,referred_id,payment_id,amount,asset,created_at) VALUES(?,?,?,?,?,?)').run(u.referred_by, u.id, p.lastInsertRowid, (Number(amount) * REF_PERCENT / 100).toFixed(chain === 'BNB' ? 6 : 4), asset, now());
+  })();
+  audit(u.id, PRODUCTS[plan].kind ? 'credit_added' : 'plan_activated', plan);
+  return expires;
+}
 app.post('/api/payments/verify', auth, rateLimit(15, 600), wrap(async (req, res) => {
   const chain = String(req.body.chain || '').toUpperCase(), plan = String(req.body.plan || ''), hash = String(req.body.txHash || '').trim();
   if (!PRODUCTS[plan]) throw fail(400, 'Unknown product.'); if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Unknown chain.');
   const key = hash.toLowerCase();
   if (db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(key)) throw fail(409, 'That transaction was already used.');
   let v; try { v = chain === 'BNB' ? await verifyBnb(hash, plan) : await verifyIcp(hash, plan); } catch (e) { throw fail(400, e.message); }
-  const u = req.user, base = Math.max(now(), activePlan(u) !== 'free' ? u.plan_expires : 0), expires = base + CYCLE_DAYS * 86400;
-  db.transaction(() => {
-    const p = db.prepare('INSERT INTO payments(user_id,chain,tx_hash,plan,amount,created_at) VALUES(?,?,?,?,?,?)').run(u.id, chain, key, plan, v.amount, now());
-    if (PRODUCTS[plan].kind === 'listing') db.prepare('UPDATE users SET listing_credits=listing_credits+1 WHERE id=?').run(u.id);
-    else if (PRODUCTS[plan].kind === 'featured') db.prepare('UPDATE users SET featured_credits=featured_credits+1 WHERE id=?').run(u.id);
-    else db.prepare('UPDATE users SET plan=?, plan_expires=? WHERE id=?').run(plan, expires, u.id);
-    if (u.referred_by) db.prepare('INSERT INTO referral_earnings(referrer_id,referred_id,payment_id,amount,asset,created_at) VALUES(?,?,?,?,?,?)').run(u.referred_by, u.id, p.lastInsertRowid, (Number(v.amount) * REF_PERCENT / 100).toFixed(chain === 'BNB' ? 6 : 4), v.asset, now());
-  })();
-  audit(u.id, PRODUCTS[plan].kind ? 'credit_added' : 'plan_activated', plan);
+  const u = req.user, expires = grantPurchase(u, plan, chain, key, v.amount, v.asset);
   res.json({ ok: true, plan, expires, credits: { listing: userById(u.id).listing_credits, featured: userById(u.id).featured_credits } });
 }));
 
+
+// ---------- manual payments (user pays to the official address, founder confirms by hand) ----------
+app.post('/api/payments/manual', auth, rateLimit(10, 600), wrap(async (req, res) => {
+  const chain = String(req.body.chain || '').toUpperCase(), plan = String(req.body.plan || ''), ref = String(req.body.txRef || '').trim().slice(0, 130), note = String(req.body.note || '').trim().slice(0, 300);
+  if (!PRODUCTS[plan]) throw fail(400, 'Unknown product.'); if (!['BNB', 'ICP'].includes(chain)) throw fail(400, 'Unknown chain.');
+  if (ref.length < 6 && note.length < 6) throw fail(400, 'Add the transaction hash (or a short note saying when and from which address you paid).');
+  if (ref && db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(ref.toLowerCase())) throw fail(409, 'That transaction was already used.');
+  if (ref && db.prepare("SELECT 1 FROM manual_payments WHERE lower(tx_ref)=? AND status IN ('pending','approved')").get(ref.toLowerCase())) throw fail(409, 'That transaction was already submitted.');
+  if (db.prepare("SELECT COUNT(*) c FROM manual_payments WHERE user_id=? AND status='pending'").get(req.user.id).c >= 5) throw fail(429, 'You have 5 requests waiting. Please wait for them to be reviewed.');
+  const info = db.prepare('INSERT INTO manual_payments(user_id,plan,chain,tx_ref,note,created_at) VALUES(?,?,?,?,?,?)').run(req.user.id, plan, chain, ref, note, now());
+  audit(req.user.id, 'manual_payment_submitted', plan + ' ' + chain);
+  res.json({ ok: true, id: info.lastInsertRowid });
+}));
+app.get('/api/payments/manual', auth, (req, res) => res.json({ requests: db.prepare('SELECT id, plan, chain, tx_ref, status, review_note, created_at FROM manual_payments WHERE user_id=? ORDER BY id DESC LIMIT 20').all(req.user.id).map(r => ({ ...r, product: PRODUCTS[r.plan] ? PRODUCTS[r.plan].name : r.plan })) }));
+app.get('/api/admin/payments/manual', auth, adminOnly, (req, res) => res.json({ requests: db.prepare("SELECT m.*, u.email, u.role, u.company_name FROM manual_payments m JOIN users u ON u.id=m.user_id WHERE m.status='pending' ORDER BY m.id").all().map(r => ({ ...r, product: PRODUCTS[r.plan] ? PRODUCTS[r.plan].name : r.plan, price: PRODUCTS[r.plan] ? (r.chain === 'BNB' ? PRODUCTS[r.plan].bnb : PRODUCTS[r.plan].icp) : null })) }));
+app.post('/api/admin/payments/manual/:id/approve', auth, adminOnly, wrap(async (req, res) => {
+  const m = db.prepare("SELECT * FROM manual_payments WHERE id=? AND status='pending'").get(req.params.id); if (!m) throw fail(404, 'Request not found or already reviewed.');
+  const u = userById(m.user_id); if (!u) throw fail(404, 'User not found.');
+  const key = m.tx_ref ? m.tx_ref.toLowerCase() : 'manual:' + m.id;
+  if (db.prepare('SELECT 1 FROM payments WHERE tx_hash=?').get(key)) throw fail(409, 'That transaction was already credited.');
+  const price = m.chain === 'BNB' ? PRODUCTS[m.plan].bnb : PRODUCTS[m.plan].icp;
+  grantPurchase(u, m.plan, m.chain, key, price, m.chain);
+  db.prepare("UPDATE manual_payments SET status='approved', reviewed_at=?, review_note=? WHERE id=?").run(now(), String(req.body.note || '').slice(0, 200), m.id);
+  audit(req.user.id, 'manual_payment_approved', 'user ' + m.user_id + ' ' + m.plan);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/payments/manual/:id/reject', auth, adminOnly, wrap(async (req, res) => {
+  const r = db.prepare("UPDATE manual_payments SET status='rejected', reviewed_at=?, review_note=? WHERE id=? AND status='pending'").run(now(), String(req.body.note || 'Payment not found on-chain').slice(0, 200), req.params.id);
+  if (!r.changes) throw fail(404, 'Request not found or already reviewed.'); res.json({ ok: true });
+}));
 // ---------- referrals + admin ----------
 app.get('/api/referrals', auth, (req, res) => {
   const rows = db.prepare('SELECT amount, asset, status, created_at FROM referral_earnings WHERE referrer_id=? ORDER BY created_at DESC').all(req.user.id), totals = {};

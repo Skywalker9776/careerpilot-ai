@@ -162,7 +162,15 @@ ${row(P.featured.name, P.featured, `One listing live for ${cfg.listingDays} days
 <tr><td>BNB Smart Chain (BEP-20)</td><td><code>${esc(cfg.merchant.bnb || 'not configured')}</code></td></tr>
 <tr><td>Internet Computer (ICP account ID)</td><td><code>${esc(cfg.merchant.icp || 'not configured')}</code></td></tr>
 </table>
-<p>Send only the listed asset on the listed network. After sending, paste the transaction hash into the Billing tab so the payment can be verified. Never pay anyone who contacts you privately claiming to be CareerPilot, and never share your seed phrase.</p>
+<p>Send only the listed asset on the listed network, and check the first and last characters of the address before sending. The network fee is paid by you.</p>
+<h2>Two ways to pay</h2>
+<p><b>1. Automatic.</b> After sending, paste the transaction hash into the Billing tab. The server checks the transaction on-chain (recipient, amount, confirmations) and activates your plan or listing credit straight away.</p>
+<p><b>2. Manual.</b> If automatic checking does not work, or you paid from an exchange, submit a manual payment request in the Billing tab with the transaction hash and a short note. The founder checks the payment by hand and activates your plan or listing credit, usually within one day. You can see the status of each request in Billing.</p>
+<h2>What you get</h2>
+<ul><li><b>Listing:</b> one job post, live for ${esc(cfg.listingDays)} days, with blind AI screening of applicants. Sign-up and login are always free; you pay only to publish.</li>
+<li><b>Featured listing:</b> one job post, live for ${esc(cfg.listingDays)} days, shown first with a Featured badge.</li>
+<li><b>Aether-Base and Synapse-Elite (optional, candidates):</b> more AI drafts per day for ${esc(cfg.cycleDays)} days. No auto-renewal. The free tier (search, matching, CV analysis, applying and ${esc(cfg.freeDrafts)} AI drafts a day) stays free.</li></ul>
+<p>Never pay anyone who contacts you privately claiming to be CareerPilot, and never share your seed phrase or private key with anyone, including us. We will never ask for them.</p>
 
 <h2>Referral commission</h2>
 <p>${esc(cfg.refPercent)}% of each verified payment made by someone you referred, paid out manually to your payout wallet. See <a href="/terms">Terms</a>.</p>
