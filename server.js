@@ -960,6 +960,7 @@ app.post('/api/admin/payouts/:id/paid', auth, adminOnly, (req, res) => { db.prep
 
 app.get('*', (req, res) => res.sendFile(INDEX_FILE));
 app.listen(PORT, () => console.log(`CareerPilot AI running on http://localhost:${PORT}`));
+require('./persist').start(db);
 // One-time AI self-test at startup (free-tier cost: a few tiny requests per deploy). Results go to the deploy log only.
 if (!AI_KEY && ALT_KEY && !E.AI_SELFTEST_OFF) setTimeout(async () => {
   const tool = [{ name: 'ping', description: 'test', input_schema: { type: 'object', properties: {} } }];

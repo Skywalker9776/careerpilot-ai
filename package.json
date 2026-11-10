@@ -4,7 +4,7 @@
   "private": true,
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node start.js",
     "test:radar": "node --test radar.test.js"
   },
   "engines": {
