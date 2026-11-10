@@ -46,6 +46,7 @@ async function getRemote() { // -> { sha, data } or null when no backup exists y
 }
 
 async function restoreIfNeeded() {
+  if (REPO && !(TOKEN && E.JWT_SECRET)) throw new Error('PERSIST_GH_REPO is set but PERSIST_GH_TOKEN or JWT_SECRET is missing');
   if (!enabled()) return 'disabled';
   if (fs.existsSync(DB_FILE())) return 'local database present, no restore';
   let lastErr;
