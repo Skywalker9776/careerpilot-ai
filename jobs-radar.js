@@ -27,6 +27,10 @@ const CATEGORY_RULES = [
   ['Finance & Accounting', /\b(finance|accountant|accounting|treasury)\b/i]
 ];
 function categoryOf(text) { return CATEGORY_RULES.find(([, re]) => re.test(text))?.[0] || 'Other'; }
+function companyHint(title) {
+  const match = String(title || '').match(/\\b(?:at|for)\\s+([A-Z][A-Za-z0-9&.'-]*(?:\\s+[A-Z][A-Za-z0-9&.'-]*){0,3})/);
+  return match ? match[1].slice(0,120) : '';
+}
 const SOCIAL = /(^|\.)((x|twitter)\.com|(t|telegram)\.me|reddit\.com|discord\.com|discord\.gg|facebook\.com|instagram\.com|threads\.net|youtube\.com)$/i;
 const NEWS = /(news|times|post|journal|herald|guardian|reuters|bloomberg|forbes|coindesk|cointelegraph|decrypt|theblock)\./i;
 
@@ -73,7 +77,7 @@ function parseRss(xml, feed) {
     const confidence = channel === 'social' ? 'social lead' : channel === 'publisher-news' ? 'news lead' : 'company lead';
     return {
       id: fingerprint, title: title.slice(0,240), description: description.slice(0,1800),
-      company: sourceName.slice(0,120), sourceName: sourceName.slice(0,120),
+      company: companyHint(title), sourceName: sourceName.slice(0,120),
       sourceType: channel, category: categoryOf(text), sourceHost: host, sourceUrl: sourceUrl || link,
       url: link, publishedAt: new Date(date).toISOString(), confidence,
       status: 'new-lead'
