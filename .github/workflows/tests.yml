@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Check JavaScript syntax
+        run: node --check server.js && node --check radar.js && if [ -f jobs-radar.js ]; then node --check jobs-radar.js; fi
       - name: Run available test suites
         run: |
           if [ -f jobs-radar.test.js ]; then
