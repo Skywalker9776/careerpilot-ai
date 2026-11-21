@@ -27,7 +27,7 @@ const CATEGORY_RULES = [
   ['Finance & Accounting', /\b(finance|accountant|accounting|treasury)\b/i]
 ];
 function categoryOf(text) { return CATEGORY_RULES.find(([, re]) => re.test(text))?.[0] || 'Other'; }
-const SOCIAL = /(^|\.)((x|twitter)\.com|(t|telegram)\.me|reddit\.com|discord\.com|discord\.gg)$/i;
+const SOCIAL = /(^|\\.)((x|twitter)\\.com|(t|telegram)\\.me|reddit\\.com|discord\\.com|discord\\.gg|facebook\\.com|instagram\\.com|threads\\.net|youtube\\.com)$/i;
 const NEWS = /(news|times|post|journal|herald|guardian|reuters|bloomberg|forbes|coindesk|cointelegraph|decrypt|theblock)\./i;
 
 function decode(s) {
