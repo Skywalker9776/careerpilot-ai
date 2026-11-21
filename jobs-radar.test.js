@@ -18,6 +18,10 @@ test('blocks excluded aggregators when Google News wraps the destination', () =>
   const xml = '<rss><item><title>Hiring Crypto Engineer</title><description>Blockchain engineer vacancy</description><link>https://news.google.com/rss/articles/abc</link><pubDate>Sat, 21 Nov 2026 08:00:00 GMT</pubDate><source url="https://www.indeed.com">Indeed</source></item></rss>';
   assert.equal(parseRss(xml, { label:'test', type:'publisher-news' }).length, 0);
 });
+test('filters dangerous upfront-payment scam job leads', () => {
+  const xml = '<rss><item><title>Hiring Crypto Engineer at Example</title><description>Blockchain engineer vacancy. Send USDT to apply first.</description><link>https://example.org/jobs/engineer</link><pubDate>Sat, 21 Nov 2026 08:00:00 GMT</pubDate><source url="https://example.org">Example</source></item></rss>';
+  assert.equal(parseRss(xml, { label:'test', type:'company-news' }).length, 0);
+});
 test('does not classify general crypto news as a job', () => {
   const xml = '<rss><item><title>Bitcoin market update</title><description>Crypto prices rise today.</description><link>https://news.example.org/bitcoin</link><pubDate>Sat, 21 Nov 2026 08:00:00 GMT</pubDate></item></rss>';
   assert.equal(parseRss(xml, { label:'test', type:'publisher-news' }).length, 0);
