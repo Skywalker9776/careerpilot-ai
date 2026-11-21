@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { scanJob } = require('./scamshield');
 
 const FEED_QUERIES = [
   { key: 'x-social', type: 'social', label: 'X / Twitter public posts', q: 'site:x.com OR site:twitter.com (crypto OR blockchain OR web3 OR "digital assets") (hiring OR "we are hiring" OR "job opening" OR vacancy)' },
@@ -78,11 +79,11 @@ function parseRss(xml, feed) {
     return {
       id: fingerprint, title: title.slice(0,240), description: description.slice(0,1800),
       company: companyHint(title), sourceName: sourceName.slice(0,120),
-      sourceType: channel, category: categoryOf(text), sourceHost: host, sourceUrl: sourceUrl || link,
+      sourceType: channel, category: categoryOf(text), safetyLevel: scanJob({ title, description, company: companyHint(title), tags: [] }).level, sourceHost: host, sourceUrl: sourceUrl || link,
       url: link, publishedAt: new Date(date).toISOString(), confidence,
       status: 'new-lead'
     };
-  }).filter(Boolean);
+  }).filter(Boolean).filter(job => job.safetyLevel !== 'danger');
 }
 function buildFeeds() {
   return FEED_QUERIES.map(feed => ({
