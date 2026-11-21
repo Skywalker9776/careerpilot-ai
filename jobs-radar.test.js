@@ -22,6 +22,12 @@ test('does not classify general crypto news as a job', () => {
   const xml = '<rss><item><title>Bitcoin market update</title><description>Crypto prices rise today.</description><link>https://news.example.org/bitcoin</link><pubDate>Sat, 21 Nov 2026 08:00:00 GMT</pubDate></item></rss>';
   assert.equal(parseRss(xml, { label:'test', type:'publisher-news' }).length, 0);
 });
+test('classifies diverse Web3 job families', () => {
+  const { categoryOf } = require('./jobs-radar');
+  assert.equal(categoryOf('Senior Solidity Engineer'), 'Engineering & Protocol');
+  assert.equal(categoryOf('Crypto Compliance Officer'), 'Operations & Compliance');
+  assert.equal(categoryOf('DeFi Community Manager'), 'Business & Growth');
+});
 test('defines multiple non-aggregator source discovery feeds', () => {
   const feeds = buildFeeds();
   assert.ok(feeds.some(f => f.key === 'x-social'));
