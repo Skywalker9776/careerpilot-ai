@@ -13,4 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node --test radar.test.js jobs-radar.test.js
+      - name: Check JavaScript syntax
+        run: node --check server.js && node --check radar.js && node --check jobs-radar.js
+      - name: Run test suites
+        run: node --test radar.test.js jobs-radar.test.js
