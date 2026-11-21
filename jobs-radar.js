@@ -6,6 +6,7 @@ const FEED_QUERIES = [
   { key: 'x-social', type: 'social', label: 'X / Twitter public posts', q: 'site:x.com OR site:twitter.com (crypto OR blockchain OR web3 OR "digital assets") (hiring OR "we are hiring" OR "job opening" OR vacancy)' },
   { key: 'reddit-social', type: 'social', label: 'Reddit public communities', q: 'site:reddit.com (crypto OR blockchain OR web3) (hiring OR "job opening" OR vacancy OR recruiter)' },
   { key: 'telegram-social', type: 'social', label: 'Public Telegram announcements', q: 'site:t.me (crypto OR blockchain OR web3) (hiring OR vacancy OR "job opening")' },
+  { key: 'other-social', type: 'social', label: 'Other public social platforms', q: '(site:facebook.com OR site:instagram.com OR site:threads.net OR site:discord.com OR site:discord.gg OR site:youtube.com) (crypto OR blockchain OR web3) (hiring OR vacancy OR "job opening" OR careers)' },
   { key: 'company-careers', type: 'company-news', label: 'Official company and startup career announcements', q: '(crypto OR blockchain OR web3 OR "digital assets") (careers OR "join our team" OR "open roles" OR "we are hiring") company startup protocol foundation' },
   { key: 'publisher-news', type: 'publisher-news', label: 'Newspaper and publisher job announcements', q: '(crypto OR blockchain OR web3 OR "digital assets") (jobs OR hiring OR vacancy OR recruitment) news newspaper' }
 ];
