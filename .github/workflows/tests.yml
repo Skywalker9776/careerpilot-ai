@@ -1,0 +1,23 @@
+name: CareerPilot tests
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feature/manual-payment-review
+      - feature/social-jobs-radar
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run available test suites
+        run: |
+          if [ -f jobs-radar.test.js ]; then
+            node --test radar.test.js jobs-radar.test.js
+          else
+            node --test radar.test.js
+          fi
