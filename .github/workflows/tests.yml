@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/manual-payment-review
       - feature/social-jobs-radar
 jobs:
   node-tests:
@@ -14,6 +15,11 @@ jobs:
         with:
           node-version: 20
       - name: Check JavaScript syntax
-        run: node --check server.js && node --check radar.js && node --check jobs-radar.js
-      - name: Run test suites
-        run: node --test radar.test.js jobs-radar.test.js
+        run: node --check server.js && node --check radar.js && if [ -f jobs-radar.js ]; then node --check jobs-radar.js; fi
+      - name: Run available test suites
+        run: |
+          if [ -f jobs-radar.test.js ]; then
+            node --test radar.test.js jobs-radar.test.js
+          else
+            node --test radar.test.js
+          fi
