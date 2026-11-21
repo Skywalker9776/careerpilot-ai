@@ -26,7 +26,7 @@ test('classifies diverse Web3 job families', () => {
   const { categoryOf } = require('./jobs-radar');
   assert.equal(categoryOf('Senior Solidity Engineer'), 'Engineering & Protocol');
   assert.equal(categoryOf('Crypto Compliance Officer'), 'Operations & Compliance');
-  assert.equal(categoryOf('DeFi Community Manager'), 'Business & Growth');
+  assert.equal(categoryOf('DeFi Community Manager'), 'Community & Content');
 });
 test('defines multiple non-aggregator source discovery feeds', () => {
   const feeds = buildFeeds();
