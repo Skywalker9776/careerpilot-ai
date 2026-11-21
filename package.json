@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:radar": "node --test radar.test.js"
+    "test:radar": "node --test radar.test.js",
+    "test:jobs-radar": "node --test jobs-radar.test.js",
+    "test": "node --test radar.test.js jobs-radar.test.js"
   },
   "engines": {
     "node": ">=18"
