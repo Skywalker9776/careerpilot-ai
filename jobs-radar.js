@@ -93,8 +93,8 @@ function buildFeeds() {
   }));
 }
 async function collectFeeds(fetchImpl = fetch, now = Date.now()) {
-  const feeds = buildFeeds(), all = [], health = [];
-  for (const feed of feeds) {
+  const feeds = buildFeeds();
+  const results = await Promise.all(feeds.map(async feed => {
     try {
       const response = await fetchImpl(feed.url, {
         headers: { 'user-agent': 'CareerPilotAI-JobsRadar/1.0 (+https://careerpilot-app-production-c211.up.railway.app)' },
@@ -106,14 +106,13 @@ async function collectFeeds(fetchImpl = fetch, now = Date.now()) {
         const t = Date.parse(j.publishedAt);
         return t <= now + 86400000 && t >= now - 30 * 86400000;
       });
-      all.push(...items);
-      health.push({ source: feed.label, status: 'ok', found: items.length });
+      return { items, health: { source: feed.label, status: 'ok', found: items.length } };
     } catch (error) {
-      health.push({ source: feed.label, status: 'unavailable', found: 0, error: String(error.message || error).slice(0,120) });
+      return { items: [], health: { source: feed.label, status: 'unavailable', found: 0, error: String(error.message || error).slice(0,120) } };
     }
-  }
+  }));
   const unique = new Map();
-  for (const item of all) if (!unique.has(item.id)) unique.set(item.id, item);
-  return { jobs: [...unique.values()].sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt)), sources: health };
+  for (const result of results) for (const item of result.items) if (!unique.has(item.id)) unique.set(item.id, item);
+  return { jobs: [...unique.values()].sort((a,b)=>Date.parse(b.publishedAt)-Date.parse(a.publishedAt)), sources: results.map(x => x.health) };
 }
 module.exports = { FEED_QUERIES, buildFeeds, parseRss, collectFeeds, safeUrl, categoryOf };
