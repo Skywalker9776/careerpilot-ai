@@ -14,16 +14,16 @@ const CRYPTO = /\b(crypto|cryptocurrency|blockchain|web3|digital assets?|defi|de
 const JOB = /\b(hir(?:e|ing|es)|vacanc(?:y|ies)|job(?:s)?|career(?:s)?|recruit(?:er|ment|ing)|open role|position|opportunit(?:y|ies)|join (?:our|the) team|talent acquisition)\b/i;
 const ROLE = /\b(engineer|developer|analyst|trader|researcher|designer|manager|director|officer|counsel|lawyer|auditor|architect|specialist|associate|intern|consultant|community|marketing|sales|operations|product|security|compliance|growth|partnership|business development|validator|moderator|writer|editor|support|customer success|quant|risk|finance|accountant|recruiter|executive|lead)\b/i;
 const CATEGORY_RULES = [
-  ['Trading & Markets', /\\b(trader|trading|market maker|quant|portfolio|investment)\\b/i],
-  ['Engineering & Protocol', /\\b(engineer|developer|software|solidity|rust|protocol|frontend|backend|devops)\\b/i],
-  ['Security & Audit', /\\b(security|auditor|audit|penetration|smart contract review)\\b/i],
-  ['Research & Analytics', /\\b(research|analyst|data scientist|data analyst|on.chain|tokenomics)\\b/i],
-  ['Product & Design', /\\b(product|designer|design|ux|ui)\\b/i],
-  ['Business & Growth', /\\b(business development|partnership|sales|growth|marketing)\\b/i],
-  ['Operations & Compliance', /\\b(operations|compliance|kyc|aml|risk|legal|policy)\\b/i],
-  ['Community & Content', /\\b(community|moderator|content|writer|editor|social media)\\b/i],
-  ['Customer Support', /\\b(support|customer success|customer service)\\b/i],
-  ['Finance & Accounting', /\\b(finance|accountant|accounting|treasury)\\b/i]
+  ['Trading & Markets', /\b(trader|trading|market maker|quant|portfolio|investment)\b/i],
+  ['Engineering & Protocol', /\b(engineer|developer|software|solidity|rust|protocol|frontend|backend|devops)\b/i],
+  ['Security & Audit', /\b(security|auditor|audit|penetration|smart contract review)\b/i],
+  ['Research & Analytics', /\b(research|analyst|data scientist|data analyst|on.chain|tokenomics)\b/i],
+  ['Product & Design', /\b(product|designer|design|ux|ui)\b/i],
+  ['Business & Growth', /\b(business development|partnership|sales|growth|marketing)\b/i],
+  ['Operations & Compliance', /\b(operations|compliance|kyc|aml|risk|legal|policy)\b/i],
+  ['Community & Content', /\b(community|moderator|content|writer|editor|social media)\b/i],
+  ['Customer Support', /\b(support|customer success|customer service)\b/i],
+  ['Finance & Accounting', /\b(finance|accountant|accounting|treasury)\b/i]
 ];
 function categoryOf(text) { return CATEGORY_RULES.find(([, re]) => re.test(text))?.[0] || 'Other'; }
 const SOCIAL = /(^|\.)((x|twitter)\.com|(t|telegram)\.me|reddit\.com|discord\.com|discord\.gg)$/i;
