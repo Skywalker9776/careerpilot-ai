@@ -1,0 +1,20 @@
+name: CareerPilot Jobs Radar checks
+on:
+  push:
+    branches:
+      - feature/jobs-radar-clean
+  pull_request:
+    branches:
+      - main
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: node --check server.js && node --check radar.js && node --check jobs-radar.js
+      - name: Run tests
+        run: node --test radar.test.js jobs-radar.test.js
