@@ -48,7 +48,8 @@ function parseRss(xml, feed) {
     const sourceTag = block.match(/<source\b[^>]*url=["']([^"']+)["'][^>]*>([\s\S]*?)<\/source>/i);
     const sourceName = sourceTag ? plain(sourceTag[2]) : feed.label;
     const sourceUrl = sourceTag ? safeUrl(sourceTag[1]) : null;
-    if (!title || !link || !Number.isFinite(date)) return null;
+    // Google News can wrap links to job aggregators; reject blocked publisher domains too.
+    if (!title || !link || !Number.isFinite(date) || (sourceTag && !sourceUrl)) return null;
     const text = title + ' ' + description;
     if (!CRYPTO.test(text) || !JOB.test(text) || !ROLE.test(text)) return null;
     const host = sourceHost(sourceUrl || link);
