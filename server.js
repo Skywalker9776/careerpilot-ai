@@ -16,6 +16,7 @@ const pdfParse = require('pdf-parse');
 const Database = require('better-sqlite3');
 const { filterRadarJobs, buildRadarSummary } = require('./radar');
 const { scanJob } = require('./scamshield');
+const { collectFeeds } = require('./jobs-radar');
 let nodemailer = null; try { nodemailer = require('nodemailer'); } catch {}
 
 const E = process.env;
@@ -106,6 +107,12 @@ CREATE TABLE IF NOT EXISTS inbound_applications(
 CREATE TABLE IF NOT EXISTS audit_log(
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, action TEXT NOT NULL, detail TEXT DEFAULT '',
   created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS radar_job_leads(
+  id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', company TEXT DEFAULT '',
+  source_name TEXT DEFAULT '', source_type TEXT NOT NULL, source_host TEXT DEFAULT '', source_url TEXT NOT NULL,
+  url TEXT NOT NULL, published_at INTEGER NOT NULL, first_seen_at INTEGER NOT NULL,
+  confidence TEXT NOT NULL, status TEXT DEFAULT 'new-lead');
+CREATE INDEX IF NOT EXISTS idx_radar_job_leads_published ON radar_job_leads(published_at DESC);
 `);
 function addCol(t, c, def) { try { db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`); } catch {} }
 addCol('users', 'role', "TEXT DEFAULT 'candidate'");
@@ -515,6 +522,33 @@ app.get('/api/jobs', auth, wrap(async (req, res) => {
   res.json({ jobs: jobs.slice(0, 60).map(short), total: jobs.length,
     filters: { query: q, location, remote: remoteOnly, visaSponsorship: visaOnly },
     source: 'CareerPilot direct postings + crypto-filtered RemoteOK listings; external links go to the original listing' });
+}));
+// ---------- Social + official-source Jobs Radar Ω ----------
+let socialRadarState = { lastScanAt: 0, sources: [], added: 0, scanned: false };
+async function refreshSocialRadar() {
+  const scan = await collectFeeds();
+  const stamp = now();
+  let added = 0;
+  const insert = db.prepare('INSERT OR IGNORE INTO radar_job_leads (id,title,description,company,source_name,source_type,source_host,source_url,url,published_at,first_seen_at,confidence,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const tx = db.transaction(items => {
+    for (const j of items) {
+      const info = insert.run(j.id,j.title,j.description,j.company,j.sourceName,j.sourceType,j.sourceHost,j.sourceUrl,j.url,Math.floor(Date.parse(j.publishedAt)/1000),stamp,j.confidence,'new-lead');
+      added += info.changes;
+    }
+  });
+  tx(scan.jobs);
+  socialRadarState = { lastScanAt: stamp, sources: scan.sources, added, scanned: true };
+  return socialRadarState;
+}
+app.get('/api/radar/new-jobs', auth, rateLimit(30, 600), (req, res) => {
+  const rows = db.prepare('SELECT id,title,description,company,source_name,source_type,source_host,source_url,url,published_at,first_seen_at,confidence,status FROM radar_job_leads WHERE published_at >= ? ORDER BY published_at DESC LIMIT 150').all(now()-30*86400);
+  res.json({ jobs: rows, total: rows.length, lastScanAt: socialRadarState.lastScanAt, lastScanAdded: socialRadarState.added, sources: socialRadarState.sources,
+    note: 'Fresh public job leads only. Social/news mentions are leads, not proof of an active vacancy. Open the original source and confirm the application route before applying.' });
+});
+app.post('/api/radar/refresh', auth, rateLimit(3, 600), wrap(async (req, res) => {
+  if (socialRadarState.lastScanAt && now()-socialRadarState.lastScanAt < 90) return res.json({ ...socialRadarState, throttled: true, message: 'A source scan completed recently. Showing its results.' });
+  const state = await refreshSocialRadar();
+  res.json({ ...state, message: state.added ? `${state.added} genuinely new job lead(s) added.` : 'Scan completed. No new qualifying jobs found.' });
 }));
 app.get('/api/radar/intelligence', auth, rateLimit(30, 600), wrap(async (req, res) => {
   const jobs = (await allJobs()).filter(j => j.native || isCrypto(j)).map(j => ({ ...j, remote: isRemote(j), visaSponsorship: hasVisaSponsorship(j) }));
