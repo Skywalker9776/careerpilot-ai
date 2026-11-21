@@ -28,7 +28,7 @@ const CATEGORY_RULES = [
 ];
 function categoryOf(text) { return CATEGORY_RULES.find(([, re]) => re.test(text))?.[0] || 'Other'; }
 function companyHint(title) {
-  const match = String(title || '').match(/\\b(?:at|for)\\s+([A-Z][A-Za-z0-9&.'-]*(?:\\s+[A-Z][A-Za-z0-9&.'-]*){0,3})/);
+  const match = String(title || '').match(/\b(?:at|for)\s+([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,3})/);
   return match ? match[1].slice(0,120) : '';
 }
 const SOCIAL = /(^|\.)((x|twitter)\.com|(t|telegram)\.me|reddit\.com|discord\.com|discord\.gg|facebook\.com|instagram\.com|threads\.net|youtube\.com)$/i;
